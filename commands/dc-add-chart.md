@@ -1,5 +1,5 @@
 ---
-name: add-chart
+name: dc-add-chart
 description: Add a new chart/portlet to an existing Drizzle Cube dashboard
 allowed-tools:
   - Read

@@ -1,5 +1,5 @@
 ---
-name: create-cube
+name: dc-create-cube
 description: Create a new Drizzle Cube definition with measures, dimensions, and security context
 allowed-tools:
   - Read

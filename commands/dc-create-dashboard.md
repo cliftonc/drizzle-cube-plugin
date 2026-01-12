@@ -1,5 +1,5 @@
 ---
-name: create-dashboard
+name: dc-create-dashboard
 description: Create a new Drizzle Cube dashboard configuration
 allowed-tools:
   - Read

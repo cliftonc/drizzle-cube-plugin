@@ -1,5 +1,5 @@
 ---
-name: debug
+name: dc-debug
 description: Debug a Drizzle Cube query using dry-run and explain endpoints
 allowed-tools:
   - Read

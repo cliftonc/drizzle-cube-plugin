@@ -1,5 +1,5 @@
 ---
-name: dashboard-config
+name: dc-dashboard-config
 description: Create and configure dashboards with portlets (charts/widgets) using DashboardConfig in Drizzle Cube.
 ---
 

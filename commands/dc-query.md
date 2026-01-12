@@ -1,5 +1,5 @@
 ---
-name: query
+name: dc-query
 description: Build a semantic query interactively for Drizzle Cube
 allowed-tools:
   - Read

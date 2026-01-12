@@ -1,5 +1,5 @@
 ---
-name: query-building
+name: dc-query-building
 description: Build semantic queries with measures, dimensions, filters, and time dimensions for Drizzle Cube.
 ---
 

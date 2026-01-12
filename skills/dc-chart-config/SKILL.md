@@ -1,5 +1,5 @@
 ---
-name: chart-config
+name: dc-chart-config
 description: Configure chart axis mappings and display options for all chart types in Drizzle Cube.
 ---
 

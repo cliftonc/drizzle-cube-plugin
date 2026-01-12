@@ -1,5 +1,5 @@
 ---
-name: analysis-config
+name: dc-analysis-config
 description: Create and configure AnalysisConfig objects for query, funnel, and flow analysis modes in Drizzle Cube dashboards.
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: setup
+name: dc-setup
 description: Configure Drizzle Cube plugin settings (API URL and authentication)
 allowed-tools:
   - Read

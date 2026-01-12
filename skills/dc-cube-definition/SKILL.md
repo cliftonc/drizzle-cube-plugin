@@ -1,5 +1,5 @@
 ---
-name: cube-definition
+name: dc-cube-definition
 description: Create and configure Drizzle Cube semantic layer cube definitions with proper security context, measures, dimensions, and joins.
 ---
 
