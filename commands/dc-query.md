@@ -16,24 +16,38 @@ Help me build a semantic query for Drizzle Cube.
 
 ## Instructions
 
-1. **Find available cubes:**
-   - Search for `defineCube` in the codebase
-   - List all registered cubes with their measures and dimensions
-   - Or check if there's a running Drizzle Cube API to fetch `/meta`
+### 1. Get Available Cubes
 
-2. **If user provided a description**, analyze it:
-   - "Count of orders by region" → measures: count, dimensions: region
-   - "Revenue trend over time" → measures: revenue, timeDimension with granularity
-   - "Top 10 customers by spend" → measures: spend, dimensions: customer, order: desc, limit: 10
+**ALWAYS try MCP tools first - they provide live data from the running API:**
 
-3. **Ask clarifying questions:**
-   - Which cube(s) should I query?
-   - What metrics (measures) do you want to see?
-   - How should the data be grouped (dimensions)?
-   - Any filters to apply?
-   - Time period or granularity needed?
+```
+Use the `drizzle_cube_meta` MCP tool to fetch cube metadata
+```
 
-4. **Build the CubeQuery:**
+This returns all registered cubes with their measures, dimensions, and relationships.
+
+**FALLBACK** (only if MCP unavailable):
+- Search for `defineCube` in the codebase
+- Or use curl: `curl -s $API_URL/meta -H "Authorization: Bearer $TOKEN"`
+
+### 2. Analyze User Description
+
+If the user provided a description (`$ARGUMENTS`), analyze it:
+- "Count of orders by region" -> measures: count, dimensions: region
+- "Revenue trend over time" -> measures: revenue, timeDimension with granularity
+- "Top 10 customers by spend" -> measures: spend, dimensions: customer, order: desc, limit: 10
+- "Employees named Alex" -> dimensions: name, email, filters: name contains 'alex'
+
+### 3. Ask Clarifying Questions (if needed)
+
+Only ask if the request is ambiguous:
+- Which cube(s) should I query?
+- What metrics (measures) do you want to see?
+- How should the data be grouped (dimensions)?
+- Any filters to apply?
+- Time period or granularity needed?
+
+### 4. Build the CubeQuery
 
 ```typescript
 const query: CubeQuery = {
@@ -56,15 +70,45 @@ const query: CubeQuery = {
 }
 ```
 
-5. **Validate the query:**
-   - All referenced fields exist in the cubes
-   - Filter operators match field types
-   - Date formats are correct (YYYY-MM-DD)
+### 5. Validate the Query
 
-6. **Offer output options:**
-   - Just the query object (for code)
-   - Full AnalysisConfig (for dashboard portlets)
-   - cURL command to test the API
+**ALWAYS use MCP tool for validation:**
+
+```
+Use the `drizzle_cube_dry_run` MCP tool with the query object
+```
+
+This validates the query and shows:
+- `valid: true/false` - Is the query valid?
+- `sql` - The generated SQL
+- `cubesUsed` - Which cubes are involved
+- `joinType` - How cubes are joined
+- `complexity` - Query complexity rating
+
+**FALLBACK** (only if MCP unavailable):
+- Manually verify all fields exist in cube metadata
+- Check filter operators match field types
+- Verify date formats are correct (YYYY-MM-DD)
+
+### 6. Execute the Query (if requested)
+
+**Use MCP tool for execution:**
+
+```
+Use the `drizzle_cube_load` MCP tool with the query object
+```
+
+This executes the query and returns results with annotations.
+
+**FALLBACK** (only if MCP unavailable):
+```bash
+curl -X POST http://localhost:4000/cubejs-api/v1/load \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"measures":["Sales.totalRevenue"],"dimensions":["Products.category"]}'
+```
+
+### 7. Offer Output Formats
 
 **Query Object:**
 ```typescript
@@ -76,7 +120,7 @@ const query: CubeQuery = {
 }
 ```
 
-**As AnalysisConfig:**
+**As AnalysisConfig (for dashboard portlets):**
 ```typescript
 {
   version: 1,
@@ -98,7 +142,7 @@ const query: CubeQuery = {
 }
 ```
 
-**As cURL:**
+**As cURL (fallback only):**
 ```bash
 curl -X POST http://localhost:4000/cubejs-api/v1/load \
   -H "Content-Type: application/json" \
@@ -106,8 +150,20 @@ curl -X POST http://localhost:4000/cubejs-api/v1/load \
   -d '{"measures":["Sales.totalRevenue"],"dimensions":["Products.category"]}'
 ```
 
+## MCP Tools Reference
+
+| Tool | Purpose |
+|------|---------|
+| `drizzle_cube_meta` | Get all cubes, measures, dimensions, relationships |
+| `drizzle_cube_dry_run` | Validate query and preview generated SQL |
+| `drizzle_cube_load` | Execute query and return results |
+| `drizzle_cube_explain` | Get query execution plan for debugging |
+| `drizzle_cube_batch` | Execute multiple queries in parallel |
+| `drizzle_cube_config` | Check API configuration status |
+
 ## Output
 - The complete CubeQuery object
 - Explanation of what the query does
 - Suggested chart type for visualization
 - Optional: AnalysisConfig wrapper
+- Query results (if executed)

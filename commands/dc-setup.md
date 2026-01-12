@@ -14,9 +14,22 @@ Configure the Drizzle Cube plugin with your API URL and authentication token.
 
 ## Instructions
 
-1. **Ask the user for configuration:**
+### 1. Check Current Configuration
 
-Ask these questions to gather configuration:
+**First, check if MCP is already configured:**
+
+```
+Use the `drizzle_cube_config` MCP tool to check current status
+```
+
+This shows:
+- Current API URL (if configured)
+- Whether a token is configured
+- Configuration source (project vs global)
+
+### 2. Ask for Configuration
+
+If not configured or user wants to change settings:
 
 **API URL:**
 - What is your Drizzle Cube API URL?
@@ -35,7 +48,7 @@ Ask these questions to gather configuration:
   - **Project** (`.drizzle-cube.json` in current directory) - for project-specific config
   - **Global** (`~/.drizzle-cube/config.json`) - for user-wide default
 
-2. **Create the configuration file:**
+### 3. Create the Configuration File
 
 **Project config (`.drizzle-cube.json`):**
 ```json
@@ -53,30 +66,47 @@ Ask these questions to gather configuration:
 }
 ```
 
-3. **Create the directory if needed:**
+### 4. Create Directory if Needed
 
 For global config:
 ```bash
 mkdir -p ~/.drizzle-cube
 ```
 
-4. **Write the config file:**
+### 5. Write the Config File
 
 Use the Write tool to create the config file with the user's settings.
 
-5. **Verify the configuration:**
+### 6. Verify the Configuration
 
-After saving, show the user:
-- Where the config was saved
-- The API URL configured (mask the token for security)
-- How to test the connection
+**Use MCP tool to verify:**
 
-**Test command:**
+```
+Use the `drizzle_cube_config` MCP tool to confirm settings are loaded
+```
+
+Then test the connection:
+
+```
+Use the `drizzle_cube_meta` MCP tool to verify API connectivity
+```
+
+If meta returns cube data, the configuration is working!
+
+**FALLBACK** (if MCP unavailable):
 ```bash
 curl -s "${API_URL}/meta" -H "Authorization: Bearer ${TOKEN}" | head -c 200
 ```
 
-6. **Explain configuration priority:**
+### 7. Show Configuration Summary
+
+After saving, show the user:
+- Where the config was saved
+- The API URL configured
+- Token status (configured/not configured - **never show the actual token**)
+- Connection test result
+
+### 8. Explain Configuration Priority
 
 The MCP server reads configuration in this order:
 1. `.drizzle-cube.json` in current project directory
@@ -85,10 +115,18 @@ The MCP server reads configuration in this order:
 
 Project config takes precedence, allowing different settings per project.
 
+## MCP Tools Reference
+
+| Tool | Purpose |
+|------|---------|
+| `drizzle_cube_config` | Check current configuration status |
+| `drizzle_cube_meta` | Test API connectivity by fetching metadata |
+
 ## Output
 
 Confirm the setup with:
 - Config file location
 - API URL (visible)
 - Token status (configured/not configured - don't show the actual token)
-- Next steps to test the connection
+- Connection test result
+- Next steps to start querying

@@ -17,25 +17,47 @@ Help me add a new chart to an existing dashboard.
 
 ## Instructions
 
-1. **Find existing dashboard configs:**
-   - Search for `DashboardConfig` in the codebase
-   - Look in `src/dashboards/`, `src/config/`, or similar
-   - List available dashboards if multiple found
+### 1. Get Available Cubes and Fields
 
-2. **Ask which dashboard to modify** if not clear
+**ALWAYS use MCP tool first to know what data is available:**
 
-3. **Read the existing dashboard** to understand:
-   - Current portlets and their positions
-   - Grid configuration
-   - Existing filters
-   - Color palette
+```
+Use the `drizzle_cube_meta` MCP tool to fetch all cubes
+```
 
-4. **Determine next available position:**
-   - Find the maximum y value in existing portlets
-   - Calculate where the new chart should go
-   - Suggest appropriate width based on chart type
+This shows:
+- Available cubes
+- Measures you can visualize
+- Dimensions for grouping
+- Time dimensions for trends
 
-5. **Based on the description ($1), suggest:**
+**FALLBACK** (only if MCP unavailable):
+- Search for `defineCube` in the codebase
+
+### 2. Find Existing Dashboard
+
+Search for existing dashboard configs:
+- Look for `DashboardConfig` in the codebase
+- Check `src/dashboards/`, `src/config/`, or similar
+- List available dashboards if multiple found
+
+Ask which dashboard to modify if not clear.
+
+### 3. Read Existing Dashboard
+
+Understand the current state:
+- Current portlets and their positions
+- Grid configuration
+- Existing filters
+- Color palette
+
+### 4. Calculate Next Position
+
+- Find the maximum y value in existing portlets
+- Calculate where the new chart should go
+- Suggest appropriate width based on chart type
+
+### 5. Generate Chart Config Based on Description
 
 **For "KPI" or "number":**
 ```typescript
@@ -138,21 +160,48 @@ Help me add a new chart to an existing dashboard.
 }
 ```
 
-6. **Generate unique ID** based on chart content
+### 6. Ask for Specific Fields
 
-7. **Ask about specific cube/measures/dimensions:**
-   - Which cube should this query?
-   - What measures to show?
-   - How to group the data?
-   - Any filters needed?
+Using the metadata from step 1, ask:
+- Which cube should this query?
+- What measures to show?
+- How to group the data (dimensions)?
+- Any filters needed?
 
-8. **Ask about dashboard filter mapping:**
-   - Should this chart respond to dashboard filters?
-   - Add `dashboardFilterMapping: ['filterId']` if yes
+### 7. Validate the Query
 
-9. **Update the dashboard file:**
-   - Add the new portlet to the `portlets` array
-   - Ensure grid positions don't overlap
+**Use MCP tool to validate before adding:**
+
+```
+Use the `drizzle_cube_dry_run` MCP tool with the query
+```
+
+This ensures the query is valid before adding to dashboard.
+
+### 8. Ask About Dashboard Filter Mapping
+
+- Should this chart respond to dashboard filters?
+- Add `dashboardFilterMapping: ['filterId']` if yes
+
+### 9. Generate Unique ID
+
+Base the ID on chart content:
+- `revenue-by-region`
+- `monthly-sales-trend`
+- `top-customers-table`
+
+### 10. Update the Dashboard File
+
+- Add the new portlet to the `portlets` array
+- Ensure grid positions don't overlap
+- Use the Edit tool to modify the existing file
+
+## MCP Tools Reference
+
+| Tool | Purpose |
+|------|---------|
+| `drizzle_cube_meta` | Get available cubes, measures, dimensions |
+| `drizzle_cube_dry_run` | Validate query before adding to dashboard |
 
 ## Output
 - The new portlet configuration

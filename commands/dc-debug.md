@@ -17,80 +17,102 @@ Help me debug a Drizzle Cube query.
 
 ## Instructions
 
-1. **Parse the query:**
-   - If JSON provided, parse it as CubeQuery
-   - If file path provided, read the file
-   - If nothing provided, ask for the query
+### 1. Parse the Query
 
-2. **Validate query structure:**
-   - Check required fields (at least measures OR dimensions)
-   - Verify field naming format (Cube.field)
-   - Check filter operator validity
+- If JSON provided, parse it as CubeQuery
+- If file path provided, read the file
+- If nothing provided, ask for the query
 
-3. **Generate dry-run request:**
+### 2. Validate Query Structure
 
+Basic validation before API call:
+- Check required fields (at least measures OR dimensions)
+- Verify field naming format (Cube.field)
+- Check filter operator validity
+
+### 3. Run Dry-Run Validation
+
+**ALWAYS use MCP tool:**
+
+```
+Use the `drizzle_cube_dry_run` MCP tool with the query object
+```
+
+This returns:
+- `valid: true/false` - Is the query valid?
+- `sql` - The generated SQL (formatted)
+- `cubesUsed` - Which cubes are involved
+- `joinType` - How cubes are joined (single_cube, multi_cube_join, etc.)
+- `complexity` - Query complexity rating (low/medium/high)
+- `analysis` - Detailed breakdown of query planning
+
+**FALLBACK** (only if MCP unavailable):
 ```bash
 curl -X POST http://localhost:4000/cubejs-api/v1/dry-run \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $DRIZZLE_CUBE_API_TOKEN" \
-  -d '{
-    "measures": ["Sales.totalRevenue"],
-    "dimensions": ["Products.category"]
-  }'
+  -d '{"measures": ["Sales.totalRevenue"], "dimensions": ["Products.category"]}'
 ```
 
-4. **Analyze dry-run response:**
-   - `valid: true/false` - Is the query valid?
-   - `sql` - The generated SQL
-   - `cubesUsed` - Which cubes are involved
-   - `joinType` - How cubes are joined
-   - `complexity` - Query complexity rating
+### 4. Analyze Dry-Run Response
 
-5. **If query is invalid:**
-   - Check error messages
-   - Verify all fields exist in cube metadata
-   - Check for typos in field names
-   - Verify filter syntax
+If `valid: false`, check:
+- Error messages in response
+- Field names for typos
+- Filter syntax correctness
+- Cube existence
 
-6. **Generate explain request** for performance analysis:
+If `valid: true`, review:
+- Generated SQL for correctness
+- Join strategy (is it optimal?)
+- Complexity rating
 
+### 5. Run Query Explain (for performance analysis)
+
+**ALWAYS use MCP tool:**
+
+```
+Use the `drizzle_cube_explain` MCP tool with the query object
+```
+
+This returns execution plan details:
+- Query execution strategy
+- Estimated costs
+- Index usage
+- Performance recommendations
+
+**FALLBACK** (only if MCP unavailable):
 ```bash
 curl -X POST http://localhost:4000/cubejs-api/v1/explain \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $DRIZZLE_CUBE_API_TOKEN" \
-  -d '{
-    "measures": ["Sales.totalRevenue"],
-    "dimensions": ["Products.category"]
-  }'
+  -d '{"measures": ["Sales.totalRevenue"], "dimensions": ["Products.category"]}'
 ```
 
-7. **Analyze explain response:**
-   - Execution plan details
-   - Scan types (Seq Scan vs Index Scan)
-   - Estimated vs actual rows
-   - Performance recommendations
-
-8. **Common issues to check:**
+### 6. Check Common Issues
 
 **Field not found:**
-- Verify cube is registered
-- Check field name spelling
+- Use `drizzle_cube_meta` to verify cube is registered
+- Check field name spelling (case-sensitive)
 - Ensure measure vs dimension is correct
 
 **Security context issues:**
 - Verify the cube has `sql` function with security context
-- Check if organisationId is being passed
+- Check if organisationId is being passed in API request
 
 **Join issues:**
-- Verify relationships exist between cubes
+- Verify relationships exist between cubes (check meta)
 - Check join direction (belongsTo vs hasMany)
+- For star schema, ensure dimension has hasMany back to facts
 
 **Performance issues:**
 - Large result sets - add LIMIT
 - Missing indexes - check EXPLAIN output
 - Complex filters - simplify or add indexes
 
-9. **Provide debugging output:**
+### 7. Provide Debug Report
+
+Format the output as:
 
 ```
 === Query Debug Report ===
@@ -101,7 +123,8 @@ Query:
   dimensions: ["Products.category"]
 }
 
-Validation: VALID
+Validation: VALID / INVALID
+Error: (if invalid)
 
 Generated SQL:
 SELECT
@@ -125,6 +148,15 @@ Recommendations:
 - Consider adding index on sales.product_id
 - Query returns estimated 1,234 rows
 ```
+
+## MCP Tools Reference
+
+| Tool | Purpose |
+|------|---------|
+| `drizzle_cube_dry_run` | Validate query and preview generated SQL |
+| `drizzle_cube_explain` | Get query execution plan for performance analysis |
+| `drizzle_cube_meta` | Get cube metadata to verify field names |
+| `drizzle_cube_config` | Check API configuration status |
 
 ## Output
 - Query validation status

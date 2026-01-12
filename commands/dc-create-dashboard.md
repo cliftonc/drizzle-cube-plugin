@@ -16,7 +16,24 @@ Help me create a new dashboard configuration for Drizzle Cube.
 
 ## Instructions
 
-1. **Create the DashboardConfig structure:**
+### 1. Get Available Cubes
+
+**ALWAYS use MCP tool first to know what data is available:**
+
+```
+Use the `drizzle_cube_meta` MCP tool to fetch all cubes
+```
+
+This shows all available:
+- Cubes and their descriptions
+- Measures (metrics you can display)
+- Dimensions (ways to group data)
+- Relationships between cubes
+
+**FALLBACK** (only if MCP unavailable):
+- Search for `defineCube` in the codebase
+
+### 2. Create the DashboardConfig Structure
 
 ```typescript
 import type { DashboardConfig } from 'drizzle-cube/client'
@@ -43,13 +60,14 @@ export const ${dashboardName}Dashboard: DashboardConfig = {
 }
 ```
 
-2. **Ask about dashboard content:**
-   - What data should this dashboard show?
-   - What metrics are most important (KPIs)?
-   - What trends should be visualized?
-   - What comparisons are needed?
+### 3. Ask About Dashboard Content
 
-3. **Suggest a layout based on common patterns:**
+- What data should this dashboard show?
+- What metrics are most important (KPIs)?
+- What trends should be visualized?
+- What comparisons are needed?
+
+### 4. Suggest Layout Based on Common Patterns
 
 **Executive Dashboard:**
 - Row 1: 4 KPI numbers (w:3 each)
@@ -66,7 +84,9 @@ export const ${dashboardName}Dashboard: DashboardConfig = {
 - Row 2: Activity timeline (w:8) + Distribution pie (w:4)
 - Row 3: Detailed metrics table (w:12)
 
-4. **For each portlet, generate proper config:**
+### 5. Generate Portlet Configs
+
+For each portlet, use the AnalysisConfig format:
 
 ```typescript
 {
@@ -100,12 +120,47 @@ export const ${dashboardName}Dashboard: DashboardConfig = {
 }
 ```
 
-5. **Ask about filters:**
-   - Should there be a global date filter?
-   - Any dimension filters (region, category, etc.)?
-   - Create `DashboardFilter` objects and map to portlets
+### 6. Validate Queries (Optional but Recommended)
 
-6. **Write the dashboard file** to `src/dashboards/${dashboardName}.ts` or similar
+**Use MCP tool to validate each portlet query:**
+
+```
+Use the `drizzle_cube_dry_run` MCP tool with each query
+```
+
+This ensures all field names are correct before saving.
+
+### 7. Ask About Dashboard Filters
+
+- Should there be a global date filter?
+- Any dimension filters (region, category, etc.)?
+- Create `DashboardFilter` objects and map to portlets
+
+```typescript
+filters: [
+  {
+    id: 'dateFilter',
+    label: 'Date Range',
+    filter: {
+      member: 'Orders.createdAt',
+      operator: 'inDateRange',
+      values: ['2024-01-01', '2024-12-31']
+    },
+    isUniversalTime: true
+  }
+]
+```
+
+### 8. Write the Dashboard File
+
+Save to `src/dashboards/${dashboardName}.ts` or similar location.
+
+## MCP Tools Reference
+
+| Tool | Purpose |
+|------|---------|
+| `drizzle_cube_meta` | Get available cubes, measures, dimensions |
+| `drizzle_cube_dry_run` | Validate portlet queries before saving |
 
 ## Output
 Provide:
