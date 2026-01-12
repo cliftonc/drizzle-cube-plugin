@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Drizzle Cube MCP Server
  *
