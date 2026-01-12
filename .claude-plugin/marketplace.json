@@ -8,7 +8,7 @@
     {
       "name": "drizzle-cube",
       "source": {
-        "type": "github",
+        "source": "github",
         "repo": "cliftonc/drizzle-cube-plugin"
       },
       "description": "Claude Code plugin for Drizzle Cube - type-safe analytics and dashboards with Drizzle ORM"
