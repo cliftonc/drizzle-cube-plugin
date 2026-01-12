@@ -1,0 +1,37 @@
+{
+  "name": "drizzle-cube-plugin",
+  "version": "1.0.0",
+  "description": "Claude Code plugin for Drizzle Cube - MCP tools for semantic layer analytics",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "drizzle-cube-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "claude-code",
+    "drizzle-cube",
+    "semantic-layer",
+    "analytics",
+    "claude-plugin"
+  ],
+  "author": "Clifton Cunningham <clifton.cunningham@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cliftonc/drizzle-cube-plugin.git"
+  },
+  "homepage": "https://try.drizzle-cube.dev",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
