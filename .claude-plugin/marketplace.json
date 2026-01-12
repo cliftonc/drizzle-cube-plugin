@@ -1,0 +1,14 @@
+{
+  "name": "drizzle-cube-marketplace",
+  "owner": {
+    "name": "Clifton Cunningham",
+    "email": "clifton.cunningham@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "drizzle-cube",
+      "source": ".",
+      "description": "Claude Code plugin for Drizzle Cube - type-safe analytics and dashboards with Drizzle ORM"
+    }
+  ]
+}
