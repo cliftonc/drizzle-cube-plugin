@@ -1,6 +1,6 @@
 ---
 name: dc-setup
-description: Configure Drizzle Cube plugin settings (API URL and authentication)
+description: Configure Drizzle Cube plugin settings (server URL and authentication)
 allowed-tools:
   - Read
   - Write
@@ -10,7 +10,7 @@ allowed-tools:
 
 # Setup Command
 
-Configure the Drizzle Cube plugin with your API URL and authentication token.
+Configure the Drizzle Cube plugin with your server URL and authentication token.
 
 ## Instructions
 
@@ -23,7 +23,8 @@ Use the `drizzle_cube_config` MCP tool to check current status
 ```
 
 This shows:
-- Current API URL (if configured)
+- Current server URL (if configured)
+- API endpoints (cubejs-api and mcp)
 - Whether a token is configured
 - Configuration source (project vs global)
 
@@ -31,12 +32,13 @@ This shows:
 
 If not configured or user wants to change settings:
 
-**API URL:**
-- What is your Drizzle Cube API URL?
-- Default: `http://localhost:4000/cubejs-api/v1`
+**Server URL:**
+- What is your Drizzle Cube server URL?
+- Default: `http://localhost:3001`
 - Examples:
-  - Local development: `http://localhost:4000/cubejs-api/v1`
-  - Production: `https://api.example.com/cubejs-api/v1`
+  - Local development: `http://localhost:3001`
+  - Production: `https://api.example.com`
+- Note: Don't include `/cubejs-api/v1` path - just the base server URL
 
 **Authentication Token:**
 - Do you need authentication for your API?
@@ -53,7 +55,7 @@ If not configured or user wants to change settings:
 **Project config (`.drizzle-cube.json`):**
 ```json
 {
-  "apiUrl": "http://localhost:4000/cubejs-api/v1",
+  "serverUrl": "http://localhost:3001",
   "apiToken": "your-token-here"
 }
 ```
@@ -61,7 +63,7 @@ If not configured or user wants to change settings:
 **Global config (`~/.drizzle-cube/config.json`):**
 ```json
 {
-  "apiUrl": "http://localhost:4000/cubejs-api/v1",
+  "serverUrl": "http://localhost:3001",
   "apiToken": "your-token-here"
 }
 ```
@@ -102,7 +104,8 @@ curl -s "${API_URL}/meta" -H "Authorization: Bearer ${TOKEN}" | head -c 200
 
 After saving, show the user:
 - Where the config was saved
-- The API URL configured
+- The server URL configured
+- Available endpoints (cubejs-api and mcp)
 - Token status (configured/not configured - **never show the actual token**)
 - Connection test result
 
@@ -111,7 +114,9 @@ After saving, show the user:
 The MCP server reads configuration in this order:
 1. `.drizzle-cube.json` in current project directory
 2. `~/.drizzle-cube/config.json` (global)
-3. Environment variables (`DRIZZLE_CUBE_API_URL`, `DRIZZLE_CUBE_API_TOKEN`)
+3. Environment variables (`DRIZZLE_CUBE_SERVER_URL`, `DRIZZLE_CUBE_API_TOKEN`)
+
+Note: The legacy `DRIZZLE_CUBE_API_URL` environment variable and old `apiUrl` config format are still supported for backward compatibility.
 
 Project config takes precedence, allowing different settings per project.
 
@@ -126,7 +131,7 @@ Project config takes precedence, allowing different settings per project.
 
 Confirm the setup with:
 - Config file location
-- API URL (visible)
+- Server URL (visible)
 - Token status (configured/not configured - don't show the actual token)
 - Connection test result
 - Next steps to start querying

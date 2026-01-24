@@ -20649,12 +20649,16 @@ var StdioServerTransport = class {
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+function normalizeServerUrl(url2) {
+  return url2.replace(/\/cubejs-api\/v1\/?$/, "");
+}
 function loadConfigFile(path) {
   try {
     if (existsSync(path)) {
       const content = readFileSync(path, "utf-8");
       const config3 = JSON.parse(content);
       return {
+        serverUrl: config3.serverUrl,
         apiUrl: config3.apiUrl,
         apiToken: config3.apiToken
       };
@@ -20670,20 +20674,26 @@ function loadConfig() {
   const globalConfigPath = join(homedir(), ".drizzle-cube", "config.json");
   const globalConfig2 = loadConfigFile(globalConfigPath);
   const envConfig = {
+    serverUrl: process.env.DRIZZLE_CUBE_SERVER_URL,
     apiUrl: process.env.DRIZZLE_CUBE_API_URL,
     apiToken: process.env.DRIZZLE_CUBE_API_TOKEN
   };
+  const rawUrl = projectConfig?.serverUrl || projectConfig?.apiUrl || globalConfig2?.serverUrl || globalConfig2?.apiUrl || envConfig.serverUrl || envConfig.apiUrl || "http://localhost:3001";
+  const serverUrl = normalizeServerUrl(rawUrl);
   const config3 = {
-    apiUrl: projectConfig?.apiUrl || globalConfig2?.apiUrl || envConfig.apiUrl || "http://localhost:3001/cubejs-api/v1",
+    serverUrl,
     apiToken: projectConfig?.apiToken || globalConfig2?.apiToken || envConfig.apiToken || ""
   };
-  const source = projectConfig?.apiUrl ? "project (.drizzle-cube.json)" : globalConfig2?.apiUrl ? "global (~/.drizzle-cube/config.json)" : envConfig.apiUrl ? "environment variables" : "defaults";
+  const hasProjectUrl = projectConfig?.serverUrl || projectConfig?.apiUrl;
+  const hasGlobalUrl = globalConfig2?.serverUrl || globalConfig2?.apiUrl;
+  const hasEnvUrl = envConfig.serverUrl || envConfig.apiUrl;
+  const source = hasProjectUrl ? "project (.drizzle-cube.json)" : hasGlobalUrl ? "global (~/.drizzle-cube/config.json)" : hasEnvUrl ? "environment variables" : "defaults";
   console.error(`Configuration loaded from: ${source}`);
   return config3;
 }
 var config2 = loadConfig();
 async function apiRequest(endpoint, method = "POST", body) {
-  const url2 = `${config2.apiUrl}${endpoint}`;
+  const url2 = `${config2.serverUrl}${endpoint}`;
   const headers = {
     "Content-Type": "application/json"
   };
@@ -20812,11 +20822,83 @@ var tools = [
   },
   {
     name: "drizzle_cube_config",
-    description: "Get current configuration status (API URL and whether token is configured)",
+    description: "Get current configuration status (server URL and whether token is configured)",
     inputSchema: {
       type: "object",
       properties: {},
       required: []
+    }
+  },
+  // AI-powered MCP tools
+  {
+    name: "drizzle_cube_discover",
+    description: "Discover relevant cubes based on topic or intent. Returns matching cubes with relevance scores and suggested measures/dimensions. Use this FIRST when user describes what data they want to analyze in natural language.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        topic: {
+          type: "string",
+          description: 'Topic or keyword to search for (e.g., "sales", "employees", "productivity")'
+        },
+        intent: {
+          type: "string",
+          description: 'Natural language intent describing what the user wants to analyze (e.g., "I want to see revenue trends by region")'
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of results to return (default: 10)"
+        },
+        minScore: {
+          type: "number",
+          description: "Minimum relevance score between 0 and 1 (default: 0.1)"
+        }
+      }
+    }
+  },
+  {
+    name: "drizzle_cube_suggest",
+    description: "Generate a semantic query from natural language. Use this after discover to build a query from user intent. Returns a suggested CubeQuery object.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        naturalLanguage: {
+          type: "string",
+          description: 'Query described in plain English (e.g., "Show me total sales by product category for the last quarter")'
+        },
+        cube: {
+          type: "string",
+          description: "Optional: constrain query generation to a specific cube name"
+        }
+      },
+      required: ["naturalLanguage"]
+    }
+  },
+  {
+    name: "drizzle_cube_validate",
+    description: "Validate a query and get auto-corrections for any issues. Use this to check queries before execution. Returns validation status and corrected query if needed.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "object",
+          description: "The CubeQuery object to validate"
+        }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "drizzle_cube_mcp_load",
+    description: "Execute a validated query through the MCP endpoint. Use this after the discover\u2192suggest\u2192validate workflow to execute the final query.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "object",
+          description: "The validated CubeQuery object to execute"
+        }
+      },
+      required: ["query"]
     }
   }
 ];
@@ -20838,8 +20920,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   try {
     switch (name) {
+      // Original Cube.js-compatible tools (use /cubejs-api/v1/* endpoints)
       case "drizzle_cube_meta": {
-        const result = await apiRequest("/meta", "GET");
+        const result = await apiRequest("/cubejs-api/v1/meta", "GET");
         return {
           content: [
             {
@@ -20851,7 +20934,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "drizzle_cube_dry_run": {
         const query = args.query;
-        const result = await apiRequest("/dry-run", "POST", query);
+        const result = await apiRequest("/cubejs-api/v1/dry-run", "POST", query);
         return {
           content: [
             {
@@ -20863,7 +20946,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "drizzle_cube_explain": {
         const query = args.query;
-        const result = await apiRequest("/explain", "POST", query);
+        const result = await apiRequest("/cubejs-api/v1/explain", "POST", query);
         return {
           content: [
             {
@@ -20875,7 +20958,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "drizzle_cube_load": {
         const query = args.query;
-        const result = await apiRequest("/load", "POST", query);
+        const result = await apiRequest("/cubejs-api/v1/load", "POST", query);
         return {
           content: [
             {
@@ -20887,7 +20970,66 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "drizzle_cube_batch": {
         const queries = args.queries;
-        const result = await apiRequest("/batch", "POST", { queries });
+        const result = await apiRequest("/cubejs-api/v1/batch", "POST", {
+          queries
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+      // AI-powered MCP tools (use /mcp/* endpoints)
+      case "drizzle_cube_discover": {
+        const { topic, intent, limit, minScore } = args;
+        const result = await apiRequest("/mcp/discover", "POST", {
+          topic,
+          intent,
+          limit,
+          minScore
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+      case "drizzle_cube_suggest": {
+        const { naturalLanguage, cube } = args;
+        const result = await apiRequest("/mcp/suggest", "POST", {
+          naturalLanguage,
+          cube
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+      case "drizzle_cube_validate": {
+        const query = args.query;
+        const result = await apiRequest("/mcp/validate", "POST", { query });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+      case "drizzle_cube_mcp_load": {
+        const query = args.query;
+        const result = await apiRequest("/mcp/load", "POST", { query });
         return {
           content: [
             {
@@ -20901,20 +21043,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const projectConfigPath = join(process.cwd(), ".drizzle-cube.json");
         const globalConfigPath = join(homedir(), ".drizzle-cube", "config.json");
         const status = {
-          apiUrl: config2.apiUrl,
+          serverUrl: config2.serverUrl,
           tokenConfigured: !!config2.apiToken,
+          endpoints: {
+            cubeApi: `${config2.serverUrl}/cubejs-api/v1`,
+            mcpApi: `${config2.serverUrl}/mcp`
+          },
           configSources: {
             projectConfig: existsSync(projectConfigPath) ? projectConfigPath : null,
             globalConfig: existsSync(globalConfigPath) ? globalConfigPath : null,
             environmentVariables: {
+              DRIZZLE_CUBE_SERVER_URL: !!process.env.DRIZZLE_CUBE_SERVER_URL,
               DRIZZLE_CUBE_API_URL: !!process.env.DRIZZLE_CUBE_API_URL,
               DRIZZLE_CUBE_API_TOKEN: !!process.env.DRIZZLE_CUBE_API_TOKEN
             }
           },
           help: {
-            projectConfig: "Create .drizzle-cube.json in your project directory",
-            globalConfig: `Create ${globalConfigPath}`,
-            envVars: "Set DRIZZLE_CUBE_API_URL and DRIZZLE_CUBE_API_TOKEN environment variables"
+            projectConfig: 'Create .drizzle-cube.json with { "serverUrl": "http://localhost:3001" }',
+            globalConfig: `Create ${globalConfigPath} with { "serverUrl": "http://localhost:3001" }`,
+            envVars: "Set DRIZZLE_CUBE_SERVER_URL and DRIZZLE_CUBE_API_TOKEN environment variables"
           }
         };
         return {
@@ -20946,7 +21093,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("Drizzle Cube MCP server started");
-  console.error(`API URL: ${config2.apiUrl}`);
+  console.error(`Server URL: ${config2.serverUrl}`);
   console.error(`Auth: ${config2.apiToken ? "Configured" : "Not configured"}`);
 }
 main().catch((error2) => {
