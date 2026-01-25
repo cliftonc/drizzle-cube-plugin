@@ -1,6 +1,6 @@
 {
   "name": "drizzle-cube-plugin",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Claude Code plugin for Drizzle Cube - MCP tools for semantic layer analytics",
   "type": "module",
   "main": "dist/index.js",

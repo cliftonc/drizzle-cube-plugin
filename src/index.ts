@@ -1,20 +1,16 @@
 /**
  * Drizzle Cube MCP Server
  *
- * Provides tools for interacting with a Drizzle Cube API:
- *
- * Original Cube.js-compatible tools:
+ * Provides REST API tools for interacting with a Drizzle Cube API:
  * - drizzle_cube_meta: Fetch cube metadata
  * - drizzle_cube_dry_run: Validate query and preview SQL
  * - drizzle_cube_explain: Get query execution plan
  * - drizzle_cube_load: Execute a query
  * - drizzle_cube_batch: Execute multiple queries in parallel
+ * - drizzle_cube_config: View current configuration status
  *
- * AI-powered MCP tools:
- * - drizzle_cube_discover: Find relevant cubes by topic/intent
- * - drizzle_cube_suggest: Generate query from natural language
- * - drizzle_cube_validate: Validate query with auto-corrections
- * - drizzle_cube_mcp_load: Execute validated query
+ * AI-powered MCP tools (discover, validate, load) are provided by the
+ * real Drizzle Cube MCP server registered in .mcp.json as drizzle-cube-api.
  *
  * Configuration priority:
  * 1. .drizzle-cube.json in current directory (project config)
@@ -290,87 +286,6 @@ const tools: Tool[] = [
       required: [],
     },
   },
-  // AI-powered MCP tools
-  {
-    name: 'drizzle_cube_discover',
-    description:
-      'Discover relevant cubes based on topic or intent. Returns matching cubes with relevance scores and suggested measures/dimensions. Use this FIRST when user describes what data they want to analyze in natural language.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        topic: {
-          type: 'string',
-          description:
-            'Topic or keyword to search for (e.g., "sales", "employees", "productivity")',
-        },
-        intent: {
-          type: 'string',
-          description:
-            'Natural language intent describing what the user wants to analyze (e.g., "I want to see revenue trends by region")',
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum number of results to return (default: 10)',
-        },
-        minScore: {
-          type: 'number',
-          description:
-            'Minimum relevance score between 0 and 1 (default: 0.1)',
-        },
-      },
-    },
-  },
-  {
-    name: 'drizzle_cube_suggest',
-    description:
-      'Generate a semantic query from natural language. Use this after discover to build a query from user intent. Returns a suggested CubeQuery object.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        naturalLanguage: {
-          type: 'string',
-          description:
-            'Query described in plain English (e.g., "Show me total sales by product category for the last quarter")',
-        },
-        cube: {
-          type: 'string',
-          description:
-            'Optional: constrain query generation to a specific cube name',
-        },
-      },
-      required: ['naturalLanguage'],
-    },
-  },
-  {
-    name: 'drizzle_cube_validate',
-    description:
-      'Validate a query and get auto-corrections for any issues. Use this to check queries before execution. Returns validation status and corrected query if needed.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'object',
-          description: 'The CubeQuery object to validate',
-        },
-      },
-      required: ['query'],
-    },
-  },
-  {
-    name: 'drizzle_cube_mcp_load',
-    description:
-      'Execute a validated query through the MCP endpoint. Use this after the discover→suggest→validate workflow to execute the final query.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'object',
-          description: 'The validated CubeQuery object to execute',
-        },
-      },
-      required: ['query'],
-    },
-  },
 ]
 
 // Create MCP server
@@ -454,75 +369,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await apiRequest('/cubejs-api/v1/batch', 'POST', {
           queries,
         })
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        }
-      }
-
-      // AI-powered MCP tools (use /mcp/* endpoints)
-      case 'drizzle_cube_discover': {
-        const { topic, intent, limit, minScore } = args as {
-          topic?: string
-          intent?: string
-          limit?: number
-          minScore?: number
-        }
-        const result = await apiRequest('/mcp/discover', 'POST', {
-          topic,
-          intent,
-          limit,
-          minScore,
-        })
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        }
-      }
-
-      case 'drizzle_cube_suggest': {
-        const { naturalLanguage, cube } = args as {
-          naturalLanguage: string
-          cube?: string
-        }
-        const result = await apiRequest('/mcp/suggest', 'POST', {
-          naturalLanguage,
-          cube,
-        })
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        }
-      }
-
-      case 'drizzle_cube_validate': {
-        const query = (args as { query: unknown }).query
-        const result = await apiRequest('/mcp/validate', 'POST', { query })
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        }
-      }
-
-      case 'drizzle_cube_mcp_load': {
-        const query = (args as { query: unknown }).query
-        const result = await apiRequest('/mcp/load', 'POST', { query })
         return {
           content: [
             {

@@ -1,5 +1,5 @@
 ---
-name: dc-ai-query
+name: dc-ask
 description: Use AI-powered tools to build and execute analytics queries from natural language
 allowed-tools:
   - Read
@@ -9,7 +9,7 @@ allowed-tools:
 
 # AI-Powered Query Building
 
-Help me analyze data using natural language. This workflow uses AI-powered MCP endpoints to discover relevant cubes and generate queries from plain English.
+Help me analyze data using natural language. This workflow uses the real Drizzle Cube MCP server's AI-powered tools to discover relevant cubes, validate queries, and execute them.
 
 ## Arguments
 - `$ARGUMENTS` - Natural language description of what you want to analyze (optional)
@@ -26,12 +26,18 @@ Use this AI-powered workflow when:
 
 **For direct queries** (when user knows specific cube.measure names), use `/dc-query` instead.
 
+### Architecture Note
+
+This workflow uses **two MCP servers**:
+1. **drizzle-cube-api** (real MCP server): Provides AI-powered `discover`, `validate`, and `load` tools
+2. **drizzle-cube** (plugin): Provides REST API tools like `drizzle_cube_meta`, `drizzle_cube_dry_run`
+
 ### 1. Discover Relevant Cubes
 
-**FIRST**, find cubes that match the user's intent:
+**FIRST**, find cubes that match the user's intent using the **real MCP server**:
 
 ```
-Use the `drizzle_cube_discover` MCP tool:
+Use the `discover` MCP tool (from drizzle-cube-api server):
 - topic: Extract key topic (e.g., "sales", "employees", "productivity")
 - intent: Pass the user's full question
 ```
@@ -43,42 +49,47 @@ This returns:
 
 **Example:**
 ```
-drizzle_cube_discover({
+discover({
   topic: "productivity",
   intent: "I want to see how productive our engineering team has been this quarter"
 })
 ```
 
-### 2. Generate Query from Natural Language
+### 2. Build Query from Schema
 
-**NEXT**, convert the user's request to a semantic query:
+**NEXT**, using the discover results, build a CubeQuery object yourself:
 
-```
-Use the `drizzle_cube_suggest` MCP tool:
-- naturalLanguage: The user's question in plain English
-- cube: (optional) Constrain to a specific cube from step 1
+From the discover response, you have:
+- Available cube names
+- Suggested measures (e.g., `Productivity.totalLinesOfCode`)
+- Suggested dimensions (e.g., `Employees.name`, `Employees.department`)
+
+Construct a query object with:
+```json
+{
+  "measures": ["Productivity.totalLinesOfCode"],
+  "dimensions": ["Employees.name"],
+  "timeDimensions": [{
+    "dimension": "Productivity.date",
+    "granularity": "quarter",
+    "dateRange": "last quarter"
+  }]
+}
 ```
 
-This returns:
-- `suggestedQuery` - A complete CubeQuery object
-- `explanation` - Why this query was suggested
-- `alternatives` - Other possible interpretations
-
-**Example:**
-```
-drizzle_cube_suggest({
-  naturalLanguage: "Show me total lines of code by employee for the last quarter",
-  cube: "Productivity"
-})
-```
+**Tips for query construction:**
+- Use measure names exactly as returned by discover
+- Include relevant dimensions for grouping
+- Add timeDimensions for time-based analysis
+- Add filters if the user specified conditions
 
 ### 3. Validate the Query
 
-**THEN**, check the query for errors and get auto-corrections:
+**THEN**, check the query for errors and get auto-corrections using the **real MCP server**:
 
 ```
-Use the `drizzle_cube_validate` MCP tool:
-- query: The suggested query from step 2
+Use the `validate` MCP tool (from drizzle-cube-api server):
+- query: The query object you built in step 2
 ```
 
 This returns:
@@ -89,7 +100,7 @@ This returns:
 
 **Example:**
 ```
-drizzle_cube_validate({
+validate({
   query: {
     measures: ["Productivity.totalLinesOfCode"],
     dimensions: ["Employees.name"],
@@ -104,10 +115,10 @@ drizzle_cube_validate({
 
 ### 4. Execute the Query
 
-**FINALLY**, run the validated query:
+**FINALLY**, run the validated query using the **real MCP server**:
 
 ```
-Use the `drizzle_cube_mcp_load` MCP tool:
+Use the `load` MCP tool (from drizzle-cube-api server):
 - query: The validated/corrected query
 ```
 
@@ -122,33 +133,32 @@ User: "How productive was engineering this quarter?"
         ↓
 [1] discover({ topic: "productivity", intent: "..." })
         ↓ (found: Productivity cube, Employees cube)
-[2] suggest({ naturalLanguage: "..." })
-        ↓ (generated query with measures, dimensions, time)
+[2] AI builds query from discover results
+        ↓ (constructed query with measures, dimensions, time)
 [3] validate({ query: ... })
         ↓ (valid, no corrections needed)
-[4] mcp_load({ query: ... })
+[4] load({ query: ... })
         ↓
 Results displayed to user
 ```
 
 ## MCP Tools Reference
 
-### AI-Powered Tools (Natural Language)
+### AI-Powered Tools (from drizzle-cube-api server)
 
 | Tool | Purpose |
 |------|---------|
-| `drizzle_cube_discover` | Find relevant cubes by topic/intent |
-| `drizzle_cube_suggest` | Generate query from natural language |
-| `drizzle_cube_validate` | Validate query with auto-corrections |
-| `drizzle_cube_mcp_load` | Execute validated query |
+| `discover` | Find relevant cubes by topic/intent |
+| `validate` | Validate query with auto-corrections |
+| `load` | Execute validated query |
 
-### Direct Tools (When You Know the Schema)
+### REST API Tools (from drizzle-cube plugin)
 
 | Tool | Purpose |
 |------|---------|
 | `drizzle_cube_meta` | Get all cubes, measures, dimensions |
 | `drizzle_cube_dry_run` | Validate query and preview SQL |
-| `drizzle_cube_load` | Execute query directly |
+| `drizzle_cube_load` | Execute query directly via REST API |
 
 ## Error Handling
 
@@ -156,13 +166,13 @@ If **discover** returns no matches:
 - Try broader topics
 - Use `drizzle_cube_meta` to see all available cubes
 
-If **suggest** can't generate a query:
-- Ask user for clarification
-- Fall back to `/dc-query` for manual query building
-
 If **validate** finds issues:
 - Use the `correctedQuery` if provided
 - Show `issues` to user and ask for clarification
+
+If query construction is unclear:
+- Ask user for clarification
+- Fall back to `/dc-query` for manual query building with full schema
 
 ## Output
 
