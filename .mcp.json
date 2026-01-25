@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "drizzle-cube-api": {
-      "type": "url",
-      "url": "https://try.drizzle-cube.dev/mcp"
-    },
     "drizzle-cube": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"]

@@ -6,16 +6,13 @@ This is a Claude Code plugin that integrates with [Drizzle Cube](https://github.
 
 ## Architecture
 
-The plugin registers **two MCP servers**:
+The plugin registers a single MCP server that provides all tools:
 
-1. **drizzle-cube-api** (URL-based) - The real Drizzle Cube MCP server
-   - Endpoint: `https://try.drizzle-cube.dev/mcp` (default)
-   - Tools: `discover`, `validate`, `load`
-   - Provides AI-powered query building
+**drizzle-cube** (stdio plugin) - All tools in one server:
+- REST API tools: `drizzle_cube_meta`, `drizzle_cube_dry_run`, `drizzle_cube_explain`, `drizzle_cube_load`, `drizzle_cube_batch`, `drizzle_cube_config`
+- AI-powered tools (proxied): `drizzle_cube_discover`, `drizzle_cube_validate`
 
-2. **drizzle-cube** (stdio plugin) - This plugin's REST API tools
-   - Tools: `drizzle_cube_meta`, `drizzle_cube_dry_run`, `drizzle_cube_explain`, `drizzle_cube_load`, `drizzle_cube_batch`, `drizzle_cube_config`
-   - Provides direct REST API access for debugging
+The AI-powered tools proxy requests to the configured Drizzle Cube server's `/mcp/*` endpoints.
 
 ## Directory Structure
 

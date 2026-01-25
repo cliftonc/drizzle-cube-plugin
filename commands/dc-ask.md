@@ -9,7 +9,7 @@ allowed-tools:
 
 # AI-Powered Query Building
 
-Help me analyze data using natural language. This workflow uses the real Drizzle Cube MCP server's AI-powered tools to discover relevant cubes, validate queries, and execute them.
+Help me analyze data using natural language. This workflow uses the Drizzle Cube plugin's AI-powered tools to discover relevant cubes, validate queries, and execute them.
 
 ## Arguments
 - `$ARGUMENTS` - Natural language description of what you want to analyze (optional)
@@ -26,18 +26,12 @@ Use this AI-powered workflow when:
 
 **For direct queries** (when user knows specific cube.measure names), use `/dc-query` instead.
 
-### Architecture Note
-
-This workflow uses **two MCP servers**:
-1. **drizzle-cube-api** (real MCP server): Provides AI-powered `discover`, `validate`, and `load` tools
-2. **drizzle-cube** (plugin): Provides REST API tools like `drizzle_cube_meta`, `drizzle_cube_dry_run`
-
 ### 1. Discover Relevant Cubes
 
-**FIRST**, find cubes that match the user's intent using the **real MCP server**:
+**FIRST**, find cubes that match the user's intent:
 
 ```
-Use the `discover` MCP tool (from drizzle-cube-api server):
+Use the `drizzle_cube_discover` tool:
 - topic: Extract key topic (e.g., "sales", "employees", "productivity")
 - intent: Pass the user's full question
 ```
@@ -49,7 +43,7 @@ This returns:
 
 **Example:**
 ```
-discover({
+drizzle_cube_discover({
   topic: "productivity",
   intent: "I want to see how productive our engineering team has been this quarter"
 })
@@ -85,10 +79,10 @@ Construct a query object with:
 
 ### 3. Validate the Query
 
-**THEN**, check the query for errors and get auto-corrections using the **real MCP server**:
+**THEN**, check the query for errors and get auto-corrections:
 
 ```
-Use the `validate` MCP tool (from drizzle-cube-api server):
+Use the `drizzle_cube_validate` tool:
 - query: The query object you built in step 2
 ```
 
@@ -100,7 +94,7 @@ This returns:
 
 **Example:**
 ```
-validate({
+drizzle_cube_validate({
   query: {
     measures: ["Productivity.totalLinesOfCode"],
     dimensions: ["Employees.name"],
@@ -115,10 +109,10 @@ validate({
 
 ### 4. Execute the Query
 
-**FINALLY**, run the validated query using the **real MCP server**:
+**FINALLY**, run the validated query:
 
 ```
-Use the `load` MCP tool (from drizzle-cube-api server):
+Use the `drizzle_cube_load` tool:
 - query: The validated/corrected query
 ```
 
@@ -130,43 +124,43 @@ This returns:
 
 ```
 User: "How productive was engineering this quarter?"
-        ↓
-[1] discover({ topic: "productivity", intent: "..." })
-        ↓ (found: Productivity cube, Employees cube)
+        |
+[1] drizzle_cube_discover({ topic: "productivity", intent: "..." })
+        | (found: Productivity cube, Employees cube)
 [2] AI builds query from discover results
-        ↓ (constructed query with measures, dimensions, time)
-[3] validate({ query: ... })
-        ↓ (valid, no corrections needed)
-[4] load({ query: ... })
-        ↓
+        | (constructed query with measures, dimensions, time)
+[3] drizzle_cube_validate({ query: ... })
+        | (valid, no corrections needed)
+[4] drizzle_cube_load({ query: ... })
+        |
 Results displayed to user
 ```
 
 ## MCP Tools Reference
 
-### AI-Powered Tools (from drizzle-cube-api server)
+### AI-Powered Tools
 
 | Tool | Purpose |
 |------|---------|
-| `discover` | Find relevant cubes by topic/intent |
-| `validate` | Validate query with auto-corrections |
-| `load` | Execute validated query |
+| `drizzle_cube_discover` | Find relevant cubes by topic/intent |
+| `drizzle_cube_validate` | Validate query with auto-corrections |
 
-### REST API Tools (from drizzle-cube plugin)
+### REST API Tools
 
 | Tool | Purpose |
 |------|---------|
 | `drizzle_cube_meta` | Get all cubes, measures, dimensions |
 | `drizzle_cube_dry_run` | Validate query and preview SQL |
-| `drizzle_cube_load` | Execute query directly via REST API |
+| `drizzle_cube_load` | Execute query |
+| `drizzle_cube_batch` | Execute multiple queries in parallel |
 
 ## Error Handling
 
-If **discover** returns no matches:
+If **drizzle_cube_discover** returns no matches:
 - Try broader topics
 - Use `drizzle_cube_meta` to see all available cubes
 
-If **validate** finds issues:
+If **drizzle_cube_validate** finds issues:
 - Use the `correctedQuery` if provided
 - Show `issues` to user and ask for clarification
 

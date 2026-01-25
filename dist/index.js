@@ -20828,6 +20828,69 @@ var tools = [
       properties: {},
       required: []
     }
+  },
+  // AI-powered tools (proxy to remote MCP server endpoints)
+  {
+    name: "drizzle_cube_discover",
+    description: "AI-powered cube discovery. Find relevant cubes, measures, and dimensions based on a natural language topic and intent. Returns ranked matches with suggested measures and dimensions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        topic: {
+          type: "string",
+          description: 'The main topic to search for (e.g., "sales", "employees", "productivity")'
+        },
+        intent: {
+          type: "string",
+          description: 'The full natural language question or intent (e.g., "I want to see sales by region for last quarter")'
+        }
+      },
+      required: ["topic", "intent"]
+    }
+  },
+  {
+    name: "drizzle_cube_validate",
+    description: "AI-powered query validation. Validates a CubeQuery and provides auto-corrections, suggestions, and error messages. Use this before executing queries to catch issues.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "object",
+          description: "The CubeQuery object to validate",
+          properties: {
+            measures: {
+              type: "array",
+              items: { type: "string" },
+              description: "Array of measure names"
+            },
+            dimensions: {
+              type: "array",
+              items: { type: "string" },
+              description: "Array of dimension names"
+            },
+            timeDimensions: {
+              type: "array",
+              items: { type: "object" },
+              description: "Array of time dimension configurations"
+            },
+            filters: {
+              type: "array",
+              items: { type: "object" },
+              description: "Array of filter objects"
+            },
+            order: {
+              type: "object",
+              description: "Order configuration"
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of rows to return"
+            }
+          }
+        }
+      },
+      required: ["query"]
+    }
   }
 ];
 var server = new Server(
@@ -20940,6 +21003,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: JSON.stringify(status, null, 2)
+            }
+          ]
+        };
+      }
+      // AI-powered tools (proxy to remote MCP server endpoints)
+      case "drizzle_cube_discover": {
+        const { topic, intent } = args;
+        const result = await apiRequest("/mcp/discover", "POST", {
+          topic,
+          intent
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      }
+      case "drizzle_cube_validate": {
+        const query = args.query;
+        const result = await apiRequest("/mcp/validate", "POST", { query });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
             }
           ]
         };
