@@ -77,6 +77,51 @@ Construct a query object with:
 - Add timeDimensions for time-based analysis
 - Add filters if the user specified conditions
 
+#### Cross-Cube Joins
+
+Cubes have relationships (joins) defined between them. You can use dimensions from joined cubes directly in your query without separate lookups:
+
+```json
+{
+  "measures": ["Employees.count"],
+  "filters": [{"member": "Departments.name", "operator": "equals", "values": ["Engineering"]}]
+}
+```
+
+This works because Employees has a `belongsTo` relationship to Departments. The semantic layer automatically handles the SQL join.
+
+**Key principle:** If you need to filter by a human-readable name (like "Engineering") instead of an ID, check if there's a joined cube with that dimension and filter directly on it.
+
+#### Time Dimension Filtering
+
+There are two ways to filter by time:
+
+**Method 1: Using timeDimensions (for time-series aggregation)**
+```json
+{
+  "measures": ["Sales.totalRevenue"],
+  "timeDimensions": [{
+    "dimension": "Sales.createdAt",
+    "granularity": "month",
+    "dateRange": "last quarter"
+  }]
+}
+```
+
+**Method 2: Using filters (for simple date filtering)**
+```json
+{
+  "measures": ["Sales.totalRevenue"],
+  "filters": [
+    {"member": "Sales.createdAt", "operator": "inDateRange", "values": ["2024-01-01", "2024-03-31"]}
+  ]
+}
+```
+
+**Predefined date ranges:** `"last 7 days"`, `"last month"`, `"last quarter"`, `"this year"`, `"from 1 year ago to now"`
+
+**Date operators:** `inDateRange`, `beforeDate`, `afterDate`
+
 ### 3. Validate the Query
 
 **THEN**, check the query for errors and get auto-corrections:
@@ -123,17 +168,18 @@ This returns:
 ### Workflow Summary
 
 ```
-User: "How productive was engineering this quarter?"
+User: "How many people are in the engineering department?"
         |
-[1] drizzle_cube_discover({ topic: "productivity", intent: "..." })
-        | (found: Productivity cube, Employees cube)
-[2] AI builds query from discover results
-        | (constructed query with measures, dimensions, time)
+[1] drizzle_cube_discover({ topic: "employees", intent: "..." })
+        | (found: Employees cube with Departments join)
+[2] AI builds query using cross-cube filter
+        | { measures: ["Employees.count"],
+        |   filters: [{ member: "Departments.name", operator: "equals", values: ["Engineering"] }] }
 [3] drizzle_cube_validate({ query: ... })
         | (valid, no corrections needed)
 [4] drizzle_cube_load({ query: ... })
         |
-Results displayed to user
+Results displayed to user (single query, no ID lookup needed)
 ```
 
 ## MCP Tools Reference
@@ -175,3 +221,11 @@ After successful execution:
 2. Show the generated query for reference
 3. Suggest a chart type for visualization
 4. Offer to save as AnalysisConfig for dashboards
+
+## Related Skills
+
+For detailed reference on query building, invoke these skills:
+
+- **dc-query-building** - Complete filter operators, time dimensions, grouped filters (AND/OR)
+- **dc-cube-definition** - How joins work between cubes (belongsTo, hasMany, etc.)
+- **dc-analysis-config** - Building funnel, flow, and retention queries
