@@ -14,16 +14,21 @@ Configure the Drizzle Cube plugin with your server URL and authentication token.
 
 ## Architecture Overview
 
-This plugin uses **two MCP servers**:
+This plugin provides a single **drizzle-cube** MCP server with 8 tools:
 
-1. **drizzle-cube-api** (URL-based): The real Drizzle Cube MCP server
-   - Provides AI-powered tools: `discover`, `validate`, `load`
-   - Default: `https://try.drizzle-cube.dev/mcp` (demo server)
-   - Configure by updating `.mcp.json` to point to your server
+**REST API tools:**
+- `drizzle_cube_meta` - Fetch cube metadata
+- `drizzle_cube_dry_run` - Preview SQL without executing
+- `drizzle_cube_explain` - Get execution plan
+- `drizzle_cube_load` - Execute query
+- `drizzle_cube_batch` - Execute multiple queries
+- `drizzle_cube_config` - Check configuration status
 
-2. **drizzle-cube** (stdio plugin): REST API tools
-   - Provides: `drizzle_cube_meta`, `drizzle_cube_dry_run`, `drizzle_cube_explain`, `drizzle_cube_load`, `drizzle_cube_batch`, `drizzle_cube_config`
-   - Configured via `.drizzle-cube.json` or environment variables
+**AI-powered tools** (proxy to server's `/mcp/*` endpoints):
+- `drizzle_cube_discover` - Find relevant cubes by topic/intent
+- `drizzle_cube_validate` - Validate query with auto-corrections
+
+All tools are configured via `.drizzle-cube.json` or environment variables.
 
 ## Instructions
 
@@ -41,24 +46,25 @@ This shows:
 - Whether a token is configured
 - Configuration source (project vs global)
 
-### 2. Verify MCP Server Connectivity
-
-**Test the real MCP server tools:**
-
-```
-Use the `discover` MCP tool (from drizzle-cube-api server):
-- topic: "test"
-```
-
-If this returns cube matches, the MCP server is accessible.
+### 2. Verify Connectivity
 
 **Test the REST API tools:**
 
 ```
-Use the `drizzle_cube_meta` MCP tool to verify REST API connectivity
+Use the `drizzle_cube_meta` MCP tool to verify API connectivity
 ```
 
-If meta returns cube data, the REST API is working.
+If meta returns cube data, the API is working.
+
+**Test the AI-powered tools:**
+
+```
+Use the `drizzle_cube_discover` MCP tool:
+- topic: "test"
+- intent: "test connectivity"
+```
+
+If this returns cube matches, the AI tools are accessible.
 
 ### 3. Configure Server URL (if needed)
 
@@ -83,9 +89,9 @@ If not configured or user wants to change settings:
   - **Project** (`.drizzle-cube.json` in current directory) - for project-specific config
   - **Global** (`~/.drizzle-cube/config.json`) - for user-wide default
 
-### 4. Update Configuration Files
+### 4. Update Configuration File
 
-**For REST API tools** - Create/update `.drizzle-cube.json`:
+Create/update `.drizzle-cube.json`:
 ```json
 {
   "serverUrl": "https://try.drizzle-cube.dev",
@@ -93,21 +99,7 @@ If not configured or user wants to change settings:
 }
 ```
 
-**For MCP server** - Update `.mcp.json` if pointing to a different server:
-```json
-{
-  "mcpServers": {
-    "drizzle-cube-api": {
-      "type": "url",
-      "url": "https://your-server.com/mcp"
-    },
-    "drizzle-cube": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"]
-    }
-  }
-}
-```
+This configures all 8 tools (both REST API and AI-powered tools use this server URL).
 
 ### 5. Create Directory if Needed
 
@@ -122,22 +114,22 @@ Use the Write tool to create the config file with the user's settings.
 
 ### 7. Verify the Configuration
 
-**Verify REST API:**
+**Verify configuration loaded:**
 ```
 Use the `drizzle_cube_config` MCP tool to confirm settings are loaded
 ```
 
-Then test:
+**Test REST API tools:**
 ```
-Use the `drizzle_cube_meta` MCP tool to verify REST API connectivity
-```
-
-**Verify MCP server:**
-```
-Use the `discover` MCP tool with topic: "employees" or similar
+Use the `drizzle_cube_meta` MCP tool to verify connectivity
 ```
 
-If both return data, the configuration is working.
+**Test AI-powered tools:**
+```
+Use the `drizzle_cube_discover` MCP tool with topic: "employees", intent: "test"
+```
+
+If all return data, the configuration is working.
 
 ### 8. Show Configuration Summary
 
@@ -163,20 +155,25 @@ Project config takes precedence, allowing different settings per project.
 
 ## MCP Tools Reference
 
-### From drizzle-cube-api (real MCP server)
+All tools are provided by the single **drizzle-cube** MCP server:
 
-| Tool | Purpose |
-|------|---------|
-| `discover` | Test MCP server connectivity |
-| `validate` | Validate queries |
-| `load` | Execute queries |
-
-### From drizzle-cube (plugin)
+### REST API Tools
 
 | Tool | Purpose |
 |------|---------|
 | `drizzle_cube_config` | Check current configuration status |
-| `drizzle_cube_meta` | Test REST API connectivity |
+| `drizzle_cube_meta` | Get cube metadata |
+| `drizzle_cube_dry_run` | Preview SQL without executing |
+| `drizzle_cube_explain` | Get execution plan |
+| `drizzle_cube_load` | Execute query |
+| `drizzle_cube_batch` | Execute multiple queries |
+
+### AI-Powered Tools
+
+| Tool | Purpose |
+|------|---------|
+| `drizzle_cube_discover` | Find relevant cubes by topic/intent |
+| `drizzle_cube_validate` | Validate query with auto-corrections |
 
 ## Output
 
@@ -184,6 +181,5 @@ Confirm the setup with:
 - Config file location
 - Server URL (visible)
 - Token status (configured/not configured - don't show the actual token)
-- MCP server connection test result
-- REST API connection test result
+- Connection test results
 - Next steps to start querying (`/dc-ask` for natural language, `/dc-query` for direct queries)

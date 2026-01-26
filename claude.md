@@ -6,13 +6,21 @@ This is a Claude Code plugin that integrates with [Drizzle Cube](https://github.
 
 ## Architecture
 
-The plugin registers a single MCP server that provides all tools:
+The plugin registers a single **drizzle-cube** MCP server (stdio) that provides 8 tools:
 
-**drizzle-cube** (stdio plugin) - All tools in one server:
-- REST API tools: `drizzle_cube_meta`, `drizzle_cube_dry_run`, `drizzle_cube_explain`, `drizzle_cube_load`, `drizzle_cube_batch`, `drizzle_cube_config`
-- AI-powered tools (proxied): `drizzle_cube_discover`, `drizzle_cube_validate`
+**REST API tools** (proxy to `/cubejs-api/v1/*` endpoints):
+- `drizzle_cube_meta` - Fetch cube metadata
+- `drizzle_cube_dry_run` - Preview SQL without executing
+- `drizzle_cube_explain` - Get execution plan
+- `drizzle_cube_load` - Execute query
+- `drizzle_cube_batch` - Execute multiple queries
+- `drizzle_cube_config` - Check configuration status
 
-The AI-powered tools proxy requests to the configured Drizzle Cube server's `/mcp/*` endpoints.
+**AI-powered tools** (proxy to `/mcp/*` endpoints):
+- `drizzle_cube_discover` - Find relevant cubes by topic/intent
+- `drizzle_cube_validate` - Validate query with auto-corrections
+
+All tools use the server URL configured in `.drizzle-cube.json`.
 
 ## Directory Structure
 
@@ -31,11 +39,11 @@ drizzle-cube-plugin/
 │   ├── dc-create-dashboard.md
 │   └── dc-add-chart.md
 ├── skills/               # Reference documentation skills
-│   ├── dc-cube-definition.md
-│   ├── dc-query-building.md
-│   ├── dc-chart-config.md
-│   ├── dc-dashboard-config.md
-│   └── dc-analysis-config.md
+│   ├── dc-cube-definition/SKILL.md
+│   ├── dc-query-building/SKILL.md
+│   ├── dc-chart-config/SKILL.md
+│   ├── dc-dashboard-config/SKILL.md
+│   └── dc-analysis-config/SKILL.md
 ├── .claude-plugin/
 │   └── plugin.json       # Plugin marketplace metadata
 ├── .mcp.json             # MCP server registration (both servers)
@@ -46,16 +54,22 @@ drizzle-cube-plugin/
 ## Key Files
 
 ### `.mcp.json`
-Registers both MCP servers. The `drizzle-cube-api` URL can be changed to point to a different Drizzle Cube server.
+Registers the single **drizzle-cube** MCP server (stdio).
 
 ### `src/index.ts`
-The plugin's MCP server providing 6 REST API tools:
+The plugin's MCP server providing all 8 tools:
+
+**REST API tools:**
 - `drizzle_cube_meta` - Fetch cube metadata
 - `drizzle_cube_dry_run` - Preview SQL without executing
 - `drizzle_cube_explain` - Get execution plan
-- `drizzle_cube_load` - Execute query via REST
+- `drizzle_cube_load` - Execute query
 - `drizzle_cube_batch` - Execute multiple queries
 - `drizzle_cube_config` - Check configuration status
+
+**AI-powered tools:**
+- `drizzle_cube_discover` - Find relevant cubes by topic/intent
+- `drizzle_cube_validate` - Validate query with auto-corrections
 
 ### Configuration
 The plugin reads config from (in priority order):
@@ -74,15 +88,16 @@ Config format:
 ## Workflows
 
 ### Natural Language Queries (`/dc-ask`)
-1. Use `discover` (from drizzle-cube-api) to find relevant cubes
+1. Use `drizzle_cube_discover` to find relevant cubes by topic/intent
 2. Build query from discover results
-3. Use `validate` to check query
-4. Use `load` to execute
+3. Use `drizzle_cube_validate` to check query and get auto-corrections
+4. Use `drizzle_cube_load` to execute
 
 ### Direct Queries (`/dc-query`)
 1. Use `drizzle_cube_meta` to see available cubes
 2. Build query manually
-3. Use `drizzle_cube_load` to execute
+3. Use `drizzle_cube_dry_run` to validate and preview SQL
+4. Use `drizzle_cube_load` to execute
 
 ### Debugging (`/dc-debug`)
 1. Use `drizzle_cube_dry_run` to preview SQL

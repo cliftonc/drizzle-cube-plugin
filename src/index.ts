@@ -1,9 +1,9 @@
 /**
  * Drizzle Cube MCP Server
  *
- * Provides tools for interacting with a Drizzle Cube API:
+ * A single MCP server providing 8 tools for interacting with a Drizzle Cube API:
  *
- * REST API tools:
+ * REST API tools (proxy to /cubejs-api/v1/* endpoints):
  * - drizzle_cube_meta: Fetch cube metadata
  * - drizzle_cube_dry_run: Validate query and preview SQL
  * - drizzle_cube_explain: Get query execution plan
@@ -11,7 +11,7 @@
  * - drizzle_cube_batch: Execute multiple queries in parallel
  * - drizzle_cube_config: View current configuration status
  *
- * AI-powered tools (proxied from remote MCP server):
+ * AI-powered tools (proxy to /mcp/* endpoints):
  * - drizzle_cube_discover: Find relevant cubes by topic/intent
  * - drizzle_cube_validate: Validate queries with auto-corrections
  *

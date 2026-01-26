@@ -11,7 +11,7 @@ allowed-tools:
 
 Help me build a semantic query for Drizzle Cube.
 
-> **Tip**: If the user describes their query in natural language instead of providing specific cube/measure names, use `/dc-ai-query` for AI-assisted query building. That workflow uses discover, suggest, and validate tools to convert natural language to queries.
+> **Tip**: If the user describes their query in natural language instead of providing specific cube/measure names, use `/dc-ask` for AI-assisted query building. That workflow uses `drizzle_cube_discover` and `drizzle_cube_validate` tools to convert natural language to queries.
 
 ## Arguments
 - `$ARGUMENTS` - Natural language description of what to query (optional)
@@ -154,7 +154,9 @@ curl -X POST http://localhost:4000/cubejs-api/v1/load \
 
 ## MCP Tools Reference
 
-### Direct Tools (This Workflow)
+All tools are provided by the single **drizzle-cube** MCP server.
+
+### REST API Tools (This Workflow)
 
 | Tool | Purpose |
 |------|---------|
@@ -165,14 +167,12 @@ curl -X POST http://localhost:4000/cubejs-api/v1/load \
 | `drizzle_cube_batch` | Execute multiple queries in parallel |
 | `drizzle_cube_config` | Check server configuration status |
 
-### AI-Powered Tools (Use `/dc-ai-query` for these)
+### AI-Powered Tools (Use `/dc-ask` for these)
 
 | Tool | Purpose |
 |------|---------|
 | `drizzle_cube_discover` | Find relevant cubes by topic/intent |
-| `drizzle_cube_suggest` | Generate query from natural language |
 | `drizzle_cube_validate` | Validate query with auto-corrections |
-| `drizzle_cube_mcp_load` | Execute validated query |
 
 ## Output
 - The complete CubeQuery object
