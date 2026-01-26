@@ -94,9 +94,12 @@ This works because Employees has a `belongsTo` relationship to Departments. The 
 
 #### Time Dimension Filtering
 
-There are two ways to filter by time:
+There are two ways to filter by time. **Choosing the wrong one is a common mistake.**
 
-**Method 1: Using timeDimensions (for time-series aggregation)**
+**Method 1: Using timeDimensions (GROUPS BY time - one row per time period)**
+
+Use this when you want to see data broken down by time periods (e.g., "revenue by month").
+
 ```json
 {
   "measures": ["Sales.totalRevenue"],
@@ -108,17 +111,29 @@ There are two ways to filter by time:
 }
 ```
 
-**Method 2: Using filters (for simple date filtering)**
+This returns multiple rows - one per month.
+
+**Method 2: Using filters (ONLY constrains data - no time grouping)**
+
+Use this when you want aggregated totals within a time range WITHOUT breaking down by time period (e.g., "total revenue for last quarter" or "top 5 employees over the past 3 months").
+
 ```json
 {
   "measures": ["Sales.totalRevenue"],
   "filters": [
-    {"member": "Sales.createdAt", "operator": "inDateRange", "values": ["2024-01-01", "2024-03-31"]}
+    {"member": "Sales.createdAt", "operator": "inDateRange", "values": ["last 3 months"]}
   ]
 }
 ```
 
-**Predefined date ranges:** `"last 7 days"`, `"last month"`, `"last quarter"`, `"this year"`, `"from 1 year ago to now"`
+This returns a single aggregated row (or rows grouped by other dimensions, but NOT by time).
+
+**Decision guide:**
+- "Show me X **by month/week/day**" → Use `timeDimensions` with `granularity`
+- "Show me X **for the past 3 months**" → Use `filters` with `inDateRange`
+- "Top N **over the past year**" → Use `filters` with `inDateRange`
+
+**Predefined date ranges:** `"last 7 days"`, `"last month"`, `"last 3 months"`, `"last quarter"`, `"this year"`, `"from 1 year ago to now"`
 
 **Date operators:** `inDateRange`, `beforeDate`, `afterDate`
 

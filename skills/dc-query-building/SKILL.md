@@ -85,6 +85,8 @@ All fields use `CubeName.fieldName` format:
 
 ## Time Dimensions
 
+**IMPORTANT:** `timeDimensions` groups results BY time (one row per period). If you only want to filter by a date range WITHOUT grouping by time, use `filters` with `inDateRange` instead. See [Time Filtering vs Time Grouping](#time-filtering-vs-time-grouping) below.
+
 ### Basic Time Query
 ```typescript
 {
@@ -162,6 +164,42 @@ dateRange: 'from 1 year ago to now'
   }]
 }
 ```
+
+### Time Filtering vs Time Grouping
+
+**This is a common source of errors.** Choose the right approach:
+
+| Goal | Method | Example |
+|------|--------|---------|
+| Break down by time periods | `timeDimensions` with `granularity` | "Revenue **by month**" |
+| Aggregate within a time range | `filters` with `inDateRange` | "Total revenue **for last quarter**" |
+| Top N over a time period | `filters` with `inDateRange` | "Top 5 employees **over past 3 months**" |
+
+**Using timeDimensions (groups by time):**
+```typescript
+// Returns ONE ROW PER MONTH
+{
+  measures: ['Sales.totalRevenue'],
+  timeDimensions: [{
+    dimension: 'Sales.createdAt',
+    granularity: 'month',
+    dateRange: 'last quarter'
+  }]
+}
+```
+
+**Using filters (only constrains, no grouping):**
+```typescript
+// Returns SINGLE AGGREGATED ROW (or rows by other dimensions)
+{
+  measures: ['Sales.totalRevenue'],
+  filters: [
+    { member: 'Sales.createdAt', operator: 'inDateRange', values: ['last quarter'] }
+  ]
+}
+```
+
+**Predefined date ranges for filters:** `'last 7 days'`, `'last month'`, `'last 3 months'`, `'last quarter'`, `'this year'`, `'from 1 year ago to now'`
 
 ## Filters
 
@@ -419,7 +457,7 @@ const explain = await fetch('/cubejs-api/v1/explain', {
 ## Common Mistakes
 
 1. **Wrong field format** - Use `Cube.field`, not just `field`
-2. **Missing granularity** - Time dimensions need granularity for aggregation
+2. **Using timeDimensions when you want filters** - `timeDimensions` groups by time (one row per period). Use `filters` with `inDateRange` to constrain a date range without grouping. See [Time Filtering vs Time Grouping](#time-filtering-vs-time-grouping).
 3. **Filter value type** - `values` must be an array, even for single values
 4. **Limit without order** - Add `order` when using `limit` for consistent results
 5. **Mixing time dimensions** - Use same granularity when combining time series
