@@ -3,17 +3,21 @@
  *
  * A single MCP server providing 8 tools for interacting with a Drizzle Cube API:
  *
- * REST API tools (proxy to /cubejs-api/v1/* endpoints):
+ * REST API tools (HTTP requests to /cubejs-api/v1/* endpoints):
  * - drizzle_cube_meta: Fetch cube metadata
  * - drizzle_cube_dry_run: Validate query and preview SQL
  * - drizzle_cube_explain: Get query execution plan
- * - drizzle_cube_load: Execute a query
  * - drizzle_cube_batch: Execute multiple queries in parallel
  * - drizzle_cube_config: View current configuration status
  *
- * AI-powered tools (proxy to /mcp/* endpoints):
+ * MCP client tools (connection to /mcp endpoint):
+ * - drizzle_cube_load: Execute a query (benefits from AI validation)
  * - drizzle_cube_discover: Find relevant cubes by topic/intent
  * - drizzle_cube_validate: Validate queries with auto-corrections
+ *
+ * The AI-powered tools use the MCP SDK's StreamableHTTPClientTransport to
+ * connect as a proper MCP client to the remote /mcp endpoint, which speaks
+ * the MCP 2025-11-25 Streamable HTTP protocol.
  *
  * Configuration priority:
  * 1. .drizzle-cube.json in current directory (project config)
@@ -27,6 +31,8 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -133,6 +139,42 @@ function loadConfig(): Config {
 
 // Load config
 const config = loadConfig()
+
+// MCP client for AI-powered tools (lazy-initialized)
+let mcpClient: Client | null = null
+let mcpTransport: StreamableHTTPClientTransport | null = null
+
+async function getMcpClient(): Promise<Client> {
+  if (mcpClient) return mcpClient
+
+  const headers: Record<string, string> = {}
+  if (config.apiToken) {
+    headers['Authorization'] = `Bearer ${config.apiToken}`
+  }
+
+  mcpTransport = new StreamableHTTPClientTransport(
+    new URL(`${config.serverUrl}/mcp`),
+    { requestInit: { headers } }
+  )
+
+  mcpClient = new Client(
+    { name: 'drizzle-cube-plugin', version: '2.0.2' },
+    { capabilities: {} }
+  )
+
+  await mcpClient.connect(mcpTransport)
+  console.error('MCP client connected to:', `${config.serverUrl}/mcp`)
+  return mcpClient
+}
+
+async function closeMcpClient(): Promise<void> {
+  if (mcpClient) {
+    await mcpClient.close()
+    mcpClient = null
+    mcpTransport = null
+    console.error('MCP client disconnected')
+  }
+}
 
 // Helper to make API requests
 // endpoint should be a full path like /cubejs-api/v1/load or /mcp/discover
@@ -423,14 +465,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'drizzle_cube_load': {
         const query = (args as { query: unknown }).query
-        const result = await apiRequest('/cubejs-api/v1/load', 'POST', query)
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
+        try {
+          const client = await getMcpClient()
+          const result = await client.callTool({
+            name: 'load',
+            arguments: { query },
+          })
+          // MCP tool results have content array, extract and format
+          const content = result.content
+          if (Array.isArray(content) && content.length > 0) {
+            const firstItem = content[0]
+            if (typeof firstItem === 'object' && 'text' in firstItem) {
+              return {
+                content: [{ type: 'text', text: firstItem.text as string }],
+              }
+            }
+          }
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          }
+        } catch (error) {
+          // Reset client on connection error so next call tries fresh
+          mcpClient = null
+          mcpTransport = null
+          throw error
         }
       }
 
@@ -491,33 +549,62 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
       }
 
-      // AI-powered tools (proxy to remote MCP server endpoints)
+      // AI-powered tools (use MCP client to connect to /mcp endpoint)
       case 'drizzle_cube_discover': {
         const { topic, intent } = args as { topic: string; intent: string }
-        const result = await apiRequest('/mcp/discover', 'POST', {
-          topic,
-          intent,
-        })
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
+        try {
+          const client = await getMcpClient()
+          const result = await client.callTool({
+            name: 'discover',
+            arguments: { topic, intent },
+          })
+          // MCP tool results have content array, extract and format
+          const content = result.content
+          if (Array.isArray(content) && content.length > 0) {
+            const firstItem = content[0]
+            if (typeof firstItem === 'object' && 'text' in firstItem) {
+              return {
+                content: [{ type: 'text', text: firstItem.text as string }],
+              }
+            }
+          }
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          }
+        } catch (error) {
+          // Reset client on connection error so next call tries fresh
+          mcpClient = null
+          mcpTransport = null
+          throw error
         }
       }
 
       case 'drizzle_cube_validate': {
         const query = (args as { query: unknown }).query
-        const result = await apiRequest('/mcp/validate', 'POST', { query })
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
+        try {
+          const client = await getMcpClient()
+          const result = await client.callTool({
+            name: 'validate',
+            arguments: { query },
+          })
+          // MCP tool results have content array, extract and format
+          const content = result.content
+          if (Array.isArray(content) && content.length > 0) {
+            const firstItem = content[0]
+            if (typeof firstItem === 'object' && 'text' in firstItem) {
+              return {
+                content: [{ type: 'text', text: firstItem.text as string }],
+              }
+            }
+          }
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          }
+        } catch (error) {
+          // Reset client on connection error so next call tries fresh
+          mcpClient = null
+          mcpTransport = null
+          throw error
         }
       }
 
@@ -544,7 +631,18 @@ async function main() {
   await server.connect(transport)
   console.error('Drizzle Cube MCP server started')
   console.error(`Server URL: ${config.serverUrl}`)
+  console.error(`MCP endpoint: ${config.serverUrl}/mcp`)
   console.error(`Auth: ${config.apiToken ? 'Configured' : 'Not configured'}`)
+
+  // Graceful shutdown
+  process.on('SIGINT', async () => {
+    await closeMcpClient()
+    process.exit(0)
+  })
+  process.on('SIGTERM', async () => {
+    await closeMcpClient()
+    process.exit(0)
+  })
 }
 
 main().catch((error) => {
