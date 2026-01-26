@@ -113,4 +113,4 @@ npm start        # Run the MCP server
 
 ## Version
 
-Current version: 2.0.0 (in both `package.json` and `.claude-plugin/plugin.json`)
+Current version: 2.0.1 (in both `package.json` and `.claude-plugin/plugin.json`)
