@@ -22757,7 +22757,8 @@ function loadConfigFile(path) {
       return {
         serverUrl: config3.serverUrl,
         apiUrl: config3.apiUrl,
-        apiToken: config3.apiToken
+        apiToken: config3.apiToken,
+        mode: config3.mode
       };
     }
   } catch (error2) {
@@ -22777,9 +22778,12 @@ function loadConfig() {
   };
   const rawUrl = projectConfig?.serverUrl || projectConfig?.apiUrl || globalConfig2?.serverUrl || globalConfig2?.apiUrl || envConfig.serverUrl || envConfig.apiUrl || "http://localhost:3001";
   const serverUrl = normalizeServerUrl(rawUrl);
+  const rawMode = projectConfig?.mode || globalConfig2?.mode;
+  const mode = rawMode === "mcp" || rawMode === "rest" ? rawMode : "auto";
   const config3 = {
     serverUrl,
-    apiToken: projectConfig?.apiToken || globalConfig2?.apiToken || envConfig.apiToken || ""
+    apiToken: projectConfig?.apiToken || globalConfig2?.apiToken || envConfig.apiToken || "",
+    mode
   };
   const hasProjectUrl = projectConfig?.serverUrl || projectConfig?.apiUrl;
   const hasGlobalUrl = globalConfig2?.serverUrl || globalConfig2?.apiUrl;
@@ -22802,7 +22806,7 @@ async function getMcpClient() {
     { requestInit: { headers } }
   );
   mcpClient = new Client(
-    { name: "drizzle-cube-plugin", version: "2.0.2" },
+    { name: "drizzle-cube-plugin", version: "2.1.0" },
     { capabilities: {} }
   );
   await mcpClient.connect(mcpTransport);
@@ -22835,6 +22839,60 @@ async function apiRequest(endpoint, method = "POST", body) {
     throw new Error(`API error (${response.status}): ${error2}`);
   }
   return response.json();
+}
+var mcpStatus = config2.mode === "rest" ? "unavailable" : "unknown";
+function extractMcpContent(result) {
+  if (result && typeof result === "object" && "content" in result) {
+    const content = result.content;
+    if (Array.isArray(content) && content.length > 0) {
+      const firstItem = content[0];
+      if (typeof firstItem === "object" && firstItem && "text" in firstItem) {
+        return firstItem.text;
+      }
+    }
+  }
+  return JSON.stringify(result, null, 2);
+}
+async function callWithFallback(opts) {
+  const { mcpToolName, mcpArgs, restEndpoint, restMethod = "POST", restBody } = opts;
+  if (config2.mode === "rest" || mcpStatus === "unavailable") {
+    const result = await apiRequest(restEndpoint, restMethod, restBody ?? mcpArgs);
+    return JSON.stringify(result, null, 2);
+  }
+  if (config2.mode === "mcp") {
+    try {
+      const client = await getMcpClient();
+      const result = await client.callTool({
+        name: mcpToolName,
+        arguments: mcpArgs
+      });
+      mcpStatus = "available";
+      return extractMcpContent(result);
+    } catch (error2) {
+      mcpClient = null;
+      mcpTransport = null;
+      throw error2;
+    }
+  }
+  try {
+    const client = await getMcpClient();
+    const result = await client.callTool({
+      name: mcpToolName,
+      arguments: mcpArgs
+    });
+    mcpStatus = "available";
+    return extractMcpContent(result);
+  } catch (error2) {
+    mcpClient = null;
+    mcpTransport = null;
+    mcpStatus = "unavailable";
+    console.error(
+      `MCP call to '${mcpToolName}' failed, falling back to REST (${restEndpoint}):`,
+      error2 instanceof Error ? error2.message : error2
+    );
+    const result = await apiRequest(restEndpoint, restMethod, restBody ?? mcpArgs);
+    return JSON.stringify(result, null, 2);
+  }
 }
 var tools = [
   {
@@ -23074,29 +23132,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "drizzle_cube_load": {
         const query = args.query;
-        try {
-          const client = await getMcpClient();
-          const result = await client.callTool({
-            name: "load",
-            arguments: { query }
-          });
-          const content = result.content;
-          if (Array.isArray(content) && content.length > 0) {
-            const firstItem = content[0];
-            if (typeof firstItem === "object" && "text" in firstItem) {
-              return {
-                content: [{ type: "text", text: firstItem.text }]
-              };
-            }
-          }
-          return {
-            content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-          };
-        } catch (error2) {
-          mcpClient = null;
-          mcpTransport = null;
-          throw error2;
-        }
+        const text = await callWithFallback({
+          mcpToolName: "load",
+          mcpArgs: { query },
+          restEndpoint: "/cubejs-api/v1/load",
+          restBody: query
+        });
+        return { content: [{ type: "text", text }] };
       }
       case "drizzle_cube_batch": {
         const queries = args.queries;
@@ -23118,6 +23160,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const status = {
           serverUrl: config2.serverUrl,
           tokenConfigured: !!config2.apiToken,
+          mode: config2.mode,
+          mcpStatus,
           endpoints: {
             cubeApi: `${config2.serverUrl}/cubejs-api/v1`,
             mcpApi: `${config2.serverUrl}/mcp`
@@ -23146,58 +23190,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ]
         };
       }
-      // AI-powered tools (use MCP client to connect to /mcp endpoint)
+      // AI-powered tools (MCP with REST fallback)
       case "drizzle_cube_discover": {
         const { topic, intent } = args;
-        try {
-          const client = await getMcpClient();
-          const result = await client.callTool({
-            name: "discover",
-            arguments: { topic, intent }
-          });
-          const content = result.content;
-          if (Array.isArray(content) && content.length > 0) {
-            const firstItem = content[0];
-            if (typeof firstItem === "object" && "text" in firstItem) {
-              return {
-                content: [{ type: "text", text: firstItem.text }]
-              };
-            }
-          }
-          return {
-            content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-          };
-        } catch (error2) {
-          mcpClient = null;
-          mcpTransport = null;
-          throw error2;
-        }
+        const text = await callWithFallback({
+          mcpToolName: "discover",
+          mcpArgs: { topic, intent },
+          restEndpoint: "/cubejs-api/v1/discover"
+        });
+        return { content: [{ type: "text", text }] };
       }
       case "drizzle_cube_validate": {
         const query = args.query;
-        try {
-          const client = await getMcpClient();
-          const result = await client.callTool({
-            name: "validate",
-            arguments: { query }
-          });
-          const content = result.content;
-          if (Array.isArray(content) && content.length > 0) {
-            const firstItem = content[0];
-            if (typeof firstItem === "object" && "text" in firstItem) {
-              return {
-                content: [{ type: "text", text: firstItem.text }]
-              };
-            }
-          }
-          return {
-            content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-          };
-        } catch (error2) {
-          mcpClient = null;
-          mcpTransport = null;
-          throw error2;
-        }
+        const text = await callWithFallback({
+          mcpToolName: "validate",
+          mcpArgs: { query },
+          restEndpoint: "/cubejs-api/v1/dry-run",
+          restBody: query
+        });
+        return { content: [{ type: "text", text }] };
       }
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -23221,6 +23232,7 @@ async function main() {
   console.error("Drizzle Cube MCP server started");
   console.error(`Server URL: ${config2.serverUrl}`);
   console.error(`MCP endpoint: ${config2.serverUrl}/mcp`);
+  console.error(`Mode: ${config2.mode}`);
   console.error(`Auth: ${config2.apiToken ? "Configured" : "Not configured"}`);
   process.on("SIGINT", async () => {
     await closeMcpClient();

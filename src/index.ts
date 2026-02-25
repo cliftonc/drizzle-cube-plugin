@@ -46,6 +46,7 @@ import { homedir } from 'os'
 interface Config {
   serverUrl: string // Base server URL (e.g., http://localhost:3001)
   apiToken: string
+  mode: 'auto' | 'mcp' | 'rest' // Connection mode for AI-powered tools
 }
 
 // Raw config from file (supports both old and new format)
@@ -53,6 +54,7 @@ interface RawConfig {
   serverUrl?: string // New format: just the server
   apiUrl?: string // Legacy format: includes /cubejs-api/v1 path
   apiToken?: string
+  mode?: 'auto' | 'mcp' | 'rest'
 }
 
 // Strip /cubejs-api/v1 suffix if present (for backward compatibility)
@@ -70,6 +72,7 @@ function loadConfigFile(path: string): RawConfig | null {
         serverUrl: config.serverUrl,
         apiUrl: config.apiUrl,
         apiToken: config.apiToken,
+        mode: config.mode,
       }
     }
   } catch (error) {
@@ -109,6 +112,11 @@ function loadConfig(): Config {
   // Normalize to base server URL (strip /cubejs-api/v1 if present)
   const serverUrl = normalizeServerUrl(rawUrl)
 
+  // Determine mode from config (project > global, default: auto)
+  const rawMode = projectConfig?.mode || globalConfig?.mode
+  const mode: Config['mode'] =
+    rawMode === 'mcp' || rawMode === 'rest' ? rawMode : 'auto'
+
   // Merge configs (project > global > env > defaults)
   const config: Config = {
     serverUrl,
@@ -117,6 +125,7 @@ function loadConfig(): Config {
       globalConfig?.apiToken ||
       envConfig.apiToken ||
       '',
+    mode,
   }
 
   // Log configuration source (for debugging)
@@ -158,7 +167,7 @@ async function getMcpClient(): Promise<Client> {
   )
 
   mcpClient = new Client(
-    { name: 'drizzle-cube-plugin', version: '2.0.2' },
+    { name: 'drizzle-cube-plugin', version: '2.1.0' },
     { capabilities: {} }
   )
 
@@ -204,6 +213,80 @@ async function apiRequest(
   }
 
   return response.json()
+}
+
+// Session-level MCP availability status
+let mcpStatus: 'unknown' | 'available' | 'unavailable' =
+  config.mode === 'rest' ? 'unavailable' : 'unknown'
+
+// Extract text content from MCP tool result wrapper
+function extractMcpContent(result: unknown): string {
+  if (result && typeof result === 'object' && 'content' in result) {
+    const content = (result as { content: unknown[] }).content
+    if (Array.isArray(content) && content.length > 0) {
+      const firstItem = content[0]
+      if (typeof firstItem === 'object' && firstItem && 'text' in firstItem) {
+        return (firstItem as { text: string }).text
+      }
+    }
+  }
+  return JSON.stringify(result, null, 2)
+}
+
+// Call an AI-powered tool with MCP-to-REST fallback
+async function callWithFallback(opts: {
+  mcpToolName: string
+  mcpArgs: Record<string, unknown>
+  restEndpoint: string
+  restMethod?: 'GET' | 'POST'
+  restBody?: unknown
+}): Promise<string> {
+  const { mcpToolName, mcpArgs, restEndpoint, restMethod = 'POST', restBody } = opts
+
+  // REST-only mode or MCP known unavailable → go straight to REST
+  if (config.mode === 'rest' || mcpStatus === 'unavailable') {
+    const result = await apiRequest(restEndpoint, restMethod, restBody ?? mcpArgs)
+    return JSON.stringify(result, null, 2)
+  }
+
+  // MCP-only mode → try MCP, throw on failure
+  if (config.mode === 'mcp') {
+    try {
+      const client = await getMcpClient()
+      const result = await client.callTool({
+        name: mcpToolName,
+        arguments: mcpArgs,
+      })
+      mcpStatus = 'available'
+      return extractMcpContent(result)
+    } catch (error) {
+      mcpClient = null
+      mcpTransport = null
+      throw error
+    }
+  }
+
+  // Auto mode → try MCP, fall back to REST on failure
+  try {
+    const client = await getMcpClient()
+    const result = await client.callTool({
+      name: mcpToolName,
+      arguments: mcpArgs,
+    })
+    mcpStatus = 'available'
+    return extractMcpContent(result)
+  } catch (error) {
+    // MCP failed — cache status and fall back to REST
+    mcpClient = null
+    mcpTransport = null
+    mcpStatus = 'unavailable'
+    console.error(
+      `MCP call to '${mcpToolName}' failed, falling back to REST (${restEndpoint}):`,
+      error instanceof Error ? error.message : error
+    )
+    const result = await apiRequest(restEndpoint, restMethod, restBody ?? mcpArgs)
+    return JSON.stringify(result, null, 2)
+  }
 }
 
 // Define available tools
@@ -465,31 +548,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'drizzle_cube_load': {
         const query = (args as { query: unknown }).query
-        try {
-          const client = await getMcpClient()
-          const result = await client.callTool({
-            name: 'load',
-            arguments: { query },
-          })
-          // MCP tool results have content array, extract and format
-          const content = result.content
-          if (Array.isArray(content) && content.length > 0) {
-            const firstItem = content[0]
-            if (typeof firstItem === 'object' && 'text' in firstItem) {
-              return {
-                content: [{ type: 'text', text: firstItem.text as string }],
-              }
-            }
-          }
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-          }
-        } catch (error) {
-          // Reset client on connection error so next call tries fresh
-          mcpClient = null
-          mcpTransport = null
-          throw error
-        }
+        const text = await callWithFallback({
+          mcpToolName: 'load',
+          mcpArgs: { query },
+          restEndpoint: '/cubejs-api/v1/load',
+          restBody: query,
+        })
+        return { content: [{ type: 'text', text }] }
       }
 
       case 'drizzle_cube_batch': {
@@ -515,6 +580,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const status = {
           serverUrl: config.serverUrl,
           tokenConfigured: !!config.apiToken,
+          mode: config.mode,
+          mcpStatus,
           endpoints: {
             cubeApi: `${config.serverUrl}/cubejs-api/v1`,
             mcpApi: `${config.serverUrl}/mcp`,
@@ -549,63 +616,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
       }
 
-      // AI-powered tools (use MCP client to connect to /mcp endpoint)
+      // AI-powered tools (MCP with REST fallback)
       case 'drizzle_cube_discover': {
         const { topic, intent } = args as { topic: string; intent: string }
-        try {
-          const client = await getMcpClient()
-          const result = await client.callTool({
-            name: 'discover',
-            arguments: { topic, intent },
-          })
-          // MCP tool results have content array, extract and format
-          const content = result.content
-          if (Array.isArray(content) && content.length > 0) {
-            const firstItem = content[0]
-            if (typeof firstItem === 'object' && 'text' in firstItem) {
-              return {
-                content: [{ type: 'text', text: firstItem.text as string }],
-              }
-            }
-          }
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-          }
-        } catch (error) {
-          // Reset client on connection error so next call tries fresh
-          mcpClient = null
-          mcpTransport = null
-          throw error
-        }
+        const text = await callWithFallback({
+          mcpToolName: 'discover',
+          mcpArgs: { topic, intent },
+          restEndpoint: '/cubejs-api/v1/discover',
+        })
+        return { content: [{ type: 'text', text }] }
       }
 
       case 'drizzle_cube_validate': {
         const query = (args as { query: unknown }).query
-        try {
-          const client = await getMcpClient()
-          const result = await client.callTool({
-            name: 'validate',
-            arguments: { query },
-          })
-          // MCP tool results have content array, extract and format
-          const content = result.content
-          if (Array.isArray(content) && content.length > 0) {
-            const firstItem = content[0]
-            if (typeof firstItem === 'object' && 'text' in firstItem) {
-              return {
-                content: [{ type: 'text', text: firstItem.text as string }],
-              }
-            }
-          }
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-          }
-        } catch (error) {
-          // Reset client on connection error so next call tries fresh
-          mcpClient = null
-          mcpTransport = null
-          throw error
-        }
+        const text = await callWithFallback({
+          mcpToolName: 'validate',
+          mcpArgs: { query },
+          restEndpoint: '/cubejs-api/v1/dry-run',
+          restBody: query,
+        })
+        return { content: [{ type: 'text', text }] }
       }
 
       default:
@@ -632,6 +662,7 @@ async function main() {
   console.error('Drizzle Cube MCP server started')
   console.error(`Server URL: ${config.serverUrl}`)
   console.error(`MCP endpoint: ${config.serverUrl}/mcp`)
+  console.error(`Mode: ${config.mode}`)
   console.error(`Auth: ${config.apiToken ? 'Configured' : 'Not configured'}`)
 
   // Graceful shutdown

@@ -217,6 +217,9 @@ Results displayed to user (single query, no ID lookup needed)
 
 ## Error Handling
 
+**MCP-to-REST Fallback:**
+In `"auto"` mode (default), the AI-powered tools (`drizzle_cube_discover`, `drizzle_cube_validate`, `drizzle_cube_load`) automatically fall back to REST endpoints if MCP is unavailable. This happens transparently — no action needed.
+
 If **drizzle_cube_discover** returns no matches:
 - Try broader topics
 - Use `drizzle_cube_meta` to see all available cubes
@@ -224,6 +227,10 @@ If **drizzle_cube_discover** returns no matches:
 If **drizzle_cube_validate** finds issues:
 - Use the `correctedQuery` if provided
 - Show `issues` to user and ask for clarification
+
+If both MCP and REST fail:
+- Run `/dc-setup` to verify connectivity and configure the correct `mode`
+- Check that the server URL is reachable
 
 If query construction is unclear:
 - Ask user for clarification

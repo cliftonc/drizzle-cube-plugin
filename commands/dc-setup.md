@@ -24,9 +24,11 @@ This plugin provides a single **drizzle-cube** MCP server with 8 tools:
 - `drizzle_cube_batch` - Execute multiple queries
 - `drizzle_cube_config` - Check configuration status
 
-**AI-powered tools** (proxy to server's `/mcp/*` endpoints):
+**AI-powered tools** (MCP with REST fallback):
 - `drizzle_cube_discover` - Find relevant cubes by topic/intent
 - `drizzle_cube_validate` - Validate query with auto-corrections
+
+The AI-powered tools prefer MCP but automatically fall back to REST when MCP is unavailable (configurable via `mode`).
 
 All tools are configured via `.drizzle-cube.json` or environment variables.
 
@@ -46,7 +48,7 @@ This shows:
 - Whether a token is configured
 - Configuration source (project vs global)
 
-### 2. Verify Connectivity
+### 2. Verify Connectivity and Detect MCP Support
 
 **Test the REST API tools:**
 
@@ -54,9 +56,9 @@ This shows:
 Use the `drizzle_cube_meta` MCP tool to verify API connectivity
 ```
 
-If meta returns cube data, the API is working.
+If meta returns cube data, the REST API is working.
 
-**Test the AI-powered tools:**
+**Probe MCP availability:**
 
 ```
 Use the `drizzle_cube_discover` MCP tool:
@@ -64,7 +66,18 @@ Use the `drizzle_cube_discover` MCP tool:
 - intent: "test connectivity"
 ```
 
-If this returns cube matches, the AI tools are accessible.
+Check the result:
+- If discover returns cube matches → MCP is available, recommend `"mode": "auto"` (default)
+- If discover returns an error mentioning MCP connection failure but then returns data (REST fallback worked) → MCP is unavailable but REST works, recommend `"mode": "rest"`
+- If discover fails entirely → check server URL and connectivity
+
+**Then check the status:**
+
+```
+Use the `drizzle_cube_config` MCP tool to check mode and mcpStatus
+```
+
+The `mcpStatus` field shows the detected MCP availability (`unknown`, `available`, or `unavailable`).
 
 ### 3. Configure Server URL (if needed)
 
@@ -95,9 +108,17 @@ Create/update `.drizzle-cube.json`:
 ```json
 {
   "serverUrl": "https://try.drizzle-cube.dev",
-  "apiToken": "your-token-here"
+  "apiToken": "your-token-here",
+  "mode": "auto"
 }
 ```
+
+**Mode options:**
+- `"auto"` (default) - Try MCP first; if it fails, silently fall back to REST for the session
+- `"mcp"` - Always use MCP, fail if unavailable
+- `"rest"` - Always use REST, never attempt MCP connection
+
+**Recommendation:** If MCP probing (step 2) showed MCP is unavailable, set `"mode": "rest"` to avoid connection attempt overhead. Otherwise leave as `"auto"`.
 
 This configures all 8 tools (both REST API and AI-powered tools use this server URL).
 
@@ -119,6 +140,8 @@ Use the Write tool to create the config file with the user's settings.
 Use the `drizzle_cube_config` MCP tool to confirm settings are loaded
 ```
 
+This should show the correct `serverUrl`, `mode`, and `mcpStatus`.
+
 **Test REST API tools:**
 ```
 Use the `drizzle_cube_meta` MCP tool to verify connectivity
@@ -129,18 +152,20 @@ Use the `drizzle_cube_meta` MCP tool to verify connectivity
 Use the `drizzle_cube_discover` MCP tool with topic: "employees", intent: "test"
 ```
 
-If all return data, the configuration is working.
+If all return data, the configuration is working. In `"auto"` mode, the discover call will transparently fall back to REST if MCP is unavailable.
 
 ### 8. Show Configuration Summary
 
 After saving, show the user:
 - Where the config was saved
 - The server URL configured
+- Connection mode (`auto`, `mcp`, or `rest`)
+- MCP status (`available`, `unavailable`, or `unknown`)
 - Available endpoints:
   - REST API: `{serverUrl}/cubejs-api/v1`
   - MCP API: `{serverUrl}/mcp`
 - Token status (configured/not configured - **never show the actual token**)
-- Connection test results for both APIs
+- Connection test results
 
 ### 9. Explain Configuration Priority
 

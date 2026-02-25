@@ -16,9 +16,11 @@ The plugin registers a single **drizzle-cube** MCP server (stdio) that provides 
 - `drizzle_cube_batch` - Execute multiple queries
 - `drizzle_cube_config` - Check configuration status
 
-**AI-powered tools** (proxy to `/mcp/*` endpoints):
+**AI-powered tools** (MCP with REST fallback):
 - `drizzle_cube_discover` - Find relevant cubes by topic/intent
 - `drizzle_cube_validate` - Validate query with auto-corrections
+
+These tools prefer MCP but fall back to REST endpoints when MCP is unavailable (controlled by `mode` config).
 
 All tools use the server URL configured in `.drizzle-cube.json`.
 
@@ -67,7 +69,7 @@ The plugin's MCP server providing all 8 tools:
 - `drizzle_cube_batch` - Execute multiple queries
 - `drizzle_cube_config` - Check configuration status
 
-**AI-powered tools:**
+**AI-powered tools** (MCP with REST fallback):
 - `drizzle_cube_discover` - Find relevant cubes by topic/intent
 - `drizzle_cube_validate` - Validate query with auto-corrections
 
@@ -81,9 +83,20 @@ Config format:
 ```json
 {
   "serverUrl": "https://try.drizzle-cube.dev",
-  "apiToken": "optional-token"
+  "apiToken": "optional-token",
+  "mode": "auto"
 }
 ```
+
+### Connection Mode (`mode`)
+
+The `mode` field controls how AI-powered tools (`load`, `discover`, `validate`) connect to the server:
+
+- `"auto"` (default) - Try MCP first; on failure, cache the result and silently fall back to REST for the session
+- `"mcp"` - Always use MCP, fail if unavailable
+- `"rest"` - Always use REST, never attempt MCP connection
+
+The plugin tracks `mcpStatus` (`unknown`, `available`, `unavailable`) at the session level. In `"auto"` mode, once MCP fails, all subsequent calls go directly to REST without retrying MCP.
 
 ## Workflows
 
@@ -113,4 +126,4 @@ npm start        # Run the MCP server
 
 ## Version
 
-Current version: 2.0.1 (in both `package.json` and `.claude-plugin/plugin.json`)
+Current version: 2.1.0 (in both `package.json` and `.claude-plugin/plugin.json`)
